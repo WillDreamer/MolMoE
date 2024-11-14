@@ -60,6 +60,7 @@ class DataArguments:
     is_training: bool = field(default=True)
     add_selfies: bool = field(default=True)
     split_eval: bool = field(default=True)
+    over_sampling: bool = field(default=False)
 
 
 @dataclass

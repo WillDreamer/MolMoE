@@ -54,8 +54,7 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
         # if sampling:
         #     train_size = int(len(data) * 0.8)
         #     data, _ = random_split(data, [train_size, len(data) - train_size])
-        over_sampling = True
-        if over_sampling:
+        if data_args.over_sampling:
             from torch.utils.data import WeightedRandomSampler
             target_size = int(len(data) * 1.5)  # 目标大小是原始数据集的x倍
             sampler = WeightedRandomSampler(
@@ -66,16 +65,23 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
             datasets.append(torch.utils.data.Subset(data, list(sampler)))
         else:
             datasets.append(data)
-        
-    dataset = ConcatDataset(datasets)
     
+    # (Hao Li): Allow average sampling for each dataset
     if data_args.split_eval:
-        train_set, eval_set = random_split(dataset, [0.9, 0.1])
+        train_sets = []
+        val_sets = []
+        for data in datasets:
+            train_set, eval_set = random_split(data, [0.9, 0.1])
+            train_sets.append(train_set)
+            val_sets.append(eval_set)
+            
+        train_set, eval_set = ConcatDataset(train_sets), ConcatDataset(val_sets)
+            
         print("=======Split eval======")
         print("Length of train:", len(train_set))
         print("Length of eval:", len(eval_set))
     else:
-        train_set, eval_set = dataset, None
+        train_set, eval_set = ConcatDataset(datasets), None
 
     return {
         "train_dataset": train_set,
