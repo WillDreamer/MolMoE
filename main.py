@@ -30,7 +30,7 @@ def main(model_args: ModelArguments, data_args: DataArguments, training_args: Tr
     args = {
         "Model Args": asdict(model_args), 
         "Data Args": asdict(data_args), 
-        "Training Args": asdict(model_args)
+        "Training Args": asdict(training_args)
         }
     if not os.path.exists(training_args.output_dir):
         Path(training_args.output_dir).mkdir(parents=True)
