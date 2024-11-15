@@ -7,3 +7,6 @@
 /tf-logs
 /Molecule-oriented_Instructions
 /eval_result
+/*.log
+/data_pipeline/__pycache__
+/model/__pycache__
