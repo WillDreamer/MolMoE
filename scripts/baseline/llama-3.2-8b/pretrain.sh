@@ -5,6 +5,8 @@
 PROMPT_VERSION="llama3"
 MODEL_VERSION="llama3-8b"
 
+cd /wanghaixin/MolMoE
+
 GRAPH_TOWER="moleculestm"
 if [ "$GRAPH_TOWER" == "graphmvp" ]; then
     INIT_CHECKPOINT_GNN="checkpoints/graphMVP.pth"
@@ -23,7 +25,7 @@ TASK="pub_chem"
 MODEL_PATH="/wanghaixin/MolMoE/checkpoints/Llama-3.1-8B"
 REMARK=""
 
-deepspeed main.py \
+/root/anaconda3/bin/deepspeed /wanghaixin/MolMoE/main.py \
     --deepspeed scripts/zero_configs/zero2.json \
     --model_name_or_path $MODEL_PATH \
     --base_model $MODEL_PATH \
