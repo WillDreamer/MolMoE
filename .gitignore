@@ -10,3 +10,4 @@
 /*.log
 /data_pipeline/__pycache__
 /model/__pycache__
+/scripts
