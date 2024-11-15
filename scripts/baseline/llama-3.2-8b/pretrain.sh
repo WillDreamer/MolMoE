@@ -23,7 +23,7 @@ TASK="pub_chem"
 MODEL_PATH="/wanghaixin/MolMoE/checkpoints/Llama-3.1-8B"
 REMARK=""
 
-deepspeed main.py \
+/root/anaconda3/bin/deepspeed main.py \
     --deepspeed scripts/zero_configs/zero2.json \
     --model_name_or_path $MODEL_PATH \
     --base_model $MODEL_PATH \
