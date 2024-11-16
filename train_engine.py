@@ -8,7 +8,10 @@ import logging
 from transformers.trainer import get_parameter_names, ALL_LAYERNORM_LAYERS
 from deepspeed.moe.utils import is_moe_param, split_params_into_different_moe_groups_for_optimizer
 from transformers.utils import is_peft_available
+from transformers.trainer_utils import EvalLoopOutput
+from typing import List, Optional
 import importlib
+from torch.utils.data import ConcatDataset, DataLoader
 from packaging import version
 from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from model.modelling_llava import MoECausalLMOutputWithPast
@@ -221,3 +224,58 @@ class MoETrainer(Trainer):
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
+    
+    def evaluation_loop(
+        self,
+        dataloader: DataLoader,
+        description: str,
+        prediction_loss_only: Optional[bool] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> EvalLoopOutput:
+        # for batch in dataloader:
+        #     print("original_batch+++++++++", batch)
+        #     exit(0)
+        if self.args.is_mixup_training:
+            datasets: ConcatDataset = dataloader.dataset
+            dataset_list = datasets.datasets
+            # print("dataset_list++++++++++++", dataset_list[0][0])
+            # exit(0)
+            data_loaders = []
+            # seperate loader for each task
+            for data in dataset_list:
+                # print("data++++++++++++", data[0])
+                # exit(0)
+                loader = self.get_eval_dataloader(data)
+                data_loaders.append(loader)
+                
+            tasks = self.args.tasks.split("/")
+            for idx, loader in enumerate(data_loaders):
+                print("Evaluation on task", tasks[idx], "...")
+                output = super().evaluation_loop(
+                    loader,
+                    description,
+                    prediction_loss_only,
+                    ignore_keys,
+                    metric_key_prefix
+                )
+                self.log({f"eval_loss_{tasks[idx]}": output.metrics["eval_loss"]})
+                print(" ")
+                
+            base_output = super().evaluation_loop(
+                dataloader,
+                description,
+                prediction_loss_only,
+                ignore_keys,
+                metric_key_prefix
+            )
+            return base_output
+        
+        else:
+            return super().evaluation_loop(
+                dataloader,
+                description,
+                prediction_loss_only,
+                ignore_keys,
+                metric_key_prefix
+            )
