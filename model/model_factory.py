@@ -183,6 +183,7 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
     lora_config = LoraConfig(  # initailize a LoRA Config
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
+        # use_rslora=True,
         target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
