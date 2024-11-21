@@ -31,6 +31,8 @@ MODEL_CLS_MAP = {
     "phi3-mini": CustomPhi3ForCausalLM,
     "Phi3-medium": CustomPhi3ForCausalLM,
     "llama3-1b": CustomLlamaForCausalLM,
+    "llama3-3b": CustomLlamaForCausalLM,
+    "llama3-8b": CustomLlamaForCausalLM,
     "tinyllama": CustomLlamaForCausalLM
 }
 
