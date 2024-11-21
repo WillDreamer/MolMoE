@@ -6,7 +6,6 @@ from torch import nn
 from model.configuration import GraphLlavaConfig, GraphConfig
 from model.graph_modal.himol import HiMolGraphTowerV2, GraphFeature, HiMolGraphTower
 from model.graph_modal.graphmvp import GraphMVP
-from model.projector import pooled_moe
 from model.custom_llama import CustomLlamaForCausalLM
 import torch
 from deepspeed.moe.layer import MoE
@@ -32,8 +31,7 @@ MODEL_CLS_MAP = {
     "phi3-mini": CustomPhi3ForCausalLM,
     "Phi3-medium": CustomPhi3ForCausalLM,
     "llama3-1b": CustomLlamaForCausalLM,
-    "llama3-3b": CustomLlamaForCausalLM,
-    "llama3-8b": CustomLlamaForCausalLM
+    "tinyllama": CustomLlamaForCausalLM
 }
 
 
@@ -167,6 +165,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         """
         print("Lodaing projector from", path2proj)
         state_dict = torch.load(path2proj)
+        print("Projector State Dict:", state_dict.keys())
         state_dict = {k.split("mm_projector.")[1]: v for k, v in state_dict.items()}
         self.mm_projector.load_state_dict(state_dict)
         
@@ -190,11 +189,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                 module.reset_parameters()
         
     def replace_mlp_with_moe(self):
-        #* 替换MLP成MoE
         FORWARD_MAP = {
             "llama3-1b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
-            "llama3-3b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
-            "llama3-8b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
             "phi3-mini": [MoEPhiDecoderLayer_forward, MoEPhiModel_forward]
         }
         if self.config.moe_config.train_modules is not None and len(self.config.moe_config.train_modules) > 0:
@@ -203,9 +199,9 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                     continue
                 else:
                     p.requires_grad = False
-        #* llm的层数
+
         num_layers = self.config.text_config.num_hidden_layers
-        #* 需要替换的层数
+
         moe_layers_idx = self.config.moe_config.moe_layers_idx
         if self.config.moe_config.moe_layers_idx is not None:
             self.config.moe_config.moe_mode = 'custom'
@@ -237,7 +233,6 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             pretrained_state_dict = self.language_model.model.layers[layer_num].mlp.state_dict()
             expert = deepcopy(self.language_model.model.layers[layer_num].mlp)
             del(self.language_model.model.layers[layer_num].mlp)
-            #* 替换最后一层moe输出loss
             moe_layer = MoE(
                 self.config.text_config.hidden_size,
                 expert=expert,
@@ -273,7 +268,6 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         
         MoEDecoderForward, MoEModelForward = FORWARD_MAP[self.config.language_backbone_name]
         
-        #! 替换MoE的forward函数
         for m in self.language_model.model.layers:
             m.forward = MoEDecoderForward(m)
         print(f'replace DecoderLayer.forward to MoEDecoderLayer.forward')
@@ -346,53 +340,16 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         # 4. Judge and feed h_node to projector
         aux_loss = None
         graph_features = None
-        if self.config.projector_config.projector_type in ["multilevel_type1", "multilevel_type2"]:
+        if "type" in self.config.projector_config.projector_type:
             assert isinstance(h_node, NestedTensor), "MoE projector requires NestedTensor!"
             graph_features, aux_loss = self.mm_projector.float()(h_node.to(device))
-            graph_features = graph_features.to(dtype)
         else:
-            graph_features = self.mm_projector.float()(h_node.to(device)).to(dtype)
+            graph_features = self.mm_projector.float()(h_node.to(device))
             
-        return graph_features, aux_loss
-        
-    
-    def encode_mol(self, mol, batch_size, device) -> torch.Tensor:
-        """
-        Enocde molecule data with graph encoder
-        Args:
-            mol: input molecule data
-
-        Returns:
-            torch.Tensor: encoded molecule feature, note the feature is projected by mm projector
-        """
-        def himol_encode(mol, batch_size):
-            return self.graph_tower.float()(Batch().from_data_list(mol), batch_size)
-            
-        def mvp_stm_encode(mol, batch_size):
-            _, h_node = self.graph_tower(mol, proj=False, return_node_feats=True)
-            return h_node
-            
-        encode_map = {
-            "himol": himol_encode,
-            "graph_mvp": mvp_stm_encode,
-            "moleculestm": mvp_stm_encode
-        }
-        h_node = encode_map[self.config.graph_config.model_name](mol, batch_size)
-        
-        # WARN: some weird thing happend if excute in bfloat16, so we force to cast to float32
-        dtype = h_node.dtype
-        if isinstance(h_node, NestedTensor):
-            if dtype == torch.bfloat16:
-                h_node = NestedTensor(h_node.tensors.float(), h_node.mask)
-        elif h_node.dtype == torch.bfloat16:
-            h_node = h_node.float()
-            
-        aux_loss = None
-        if isinstance(self.mm_projector, pooled_moe):
-            graph_features, aux_loss = self.mm_projector.float()(h_node.to(device))
-            graph_features = graph_features.to(dtype)
+        if isinstance(graph_features, list):
+            graph_features = [f.to(dtype) for f in graph_features]
         else:
-            graph_features = self.mm_projector.float()(h_node.to(device)).to(dtype)
+            graph_features = graph_features.to(dtype)
             
         return graph_features, aux_loss
     
@@ -404,6 +361,10 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         labels: torch.LongTensor, 
         graphs: torch.FloatTensor
     ):
+        # <image>
+        # [[0.2, 0.3, 0.4], [0.2, 0.3, 0.4], [0.1, 0.3, 0.4]]
+        # graph token: [[0.3, 0.1, 0.5]]
+        # [[0.3, 0.1, 0.5], [0.2 ,0.3, 0.4], [0.2, 0.3, 0.4], [0.1, 0.3, 0.4]]
         graph_tower = self.graph_tower  # get graph encoder
         """
         NOTE
@@ -645,7 +606,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             if attention_mask is not None:
                 new_attn_mask_pad_left = torch.full((attention_mask.shape[0], new_input_embeds.shape[1] - input_ids.shape[1]), True, dtype=attention_mask.dtype, device=attention_mask.device)
                 attention_mask = torch.cat((new_attn_mask_pad_left, attention_mask), dim=1)
-                assert attention_mask.shape == new_input_embeds.shape[:2]
+                assert attention_mask.shape == new_input_embeds.shape[:2], f"attention_mask.shape: {attention_mask.shape} != new_input_embeds.shape[:2]: {new_input_embeds.shape[:2]}"
                 
         position_ids = (attention_mask.cumsum(-1) - 1).masked_fill_((attention_mask == 0), 1)
         
@@ -706,6 +667,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         return_class.proj_aux_coeff = self.config.projector_aux_loss_coeff
         return_class.model_loss = model_loss
         return_class.router_aux_coeff = self.config.moe_config.router_aux_loss_coef
+        return_class.labels = labels  # for spin training
         
         return return_class
         
@@ -715,11 +677,12 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         logits, 
         return_dict, 
         outputs,
-        projector_aux_loss
+        projector_aux_loss,
+        is_spin_training
         ):
         loss = None
         model_loss = None
-        if labels is not None:
+        if labels is not None and not is_spin_training:
             # Shift so that tokens < n predict n
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
@@ -752,6 +715,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         return_class.projector_aux_loss = projector_aux_loss
         return_class.proj_aux_coeff = self.config.projector_aux_loss_coeff
         return_class.model_loss = model_loss
+        return_class.labels = labels
         
         return return_class
     
@@ -768,6 +732,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         output_hidden_states: Optional[bool] = None,
         graphs: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
+        is_spin_training = False
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -796,7 +761,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         if self.config.moe_enable:
             return self.moe_forward(labels, logits, outputs, return_dict, projector_aux_loss)
         else:
-            return self.vanilla_forward(labels, logits, return_dict, outputs, projector_aux_loss)
+            return self.vanilla_forward(labels, logits, return_dict, outputs, projector_aux_loss, is_spin_training)
         
     """
     NOTE

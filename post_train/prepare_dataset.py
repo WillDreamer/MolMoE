@@ -32,7 +32,7 @@ logging.basicConfig(
             datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=720000))
+kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=72000))
 accelerator = Accelerator(kwargs_handlers=[kwargs])
 
 IGNORE_INDEX = -100
@@ -68,6 +68,7 @@ class EvalArguments:
     is_training: bool = False
     max_new_tokens: int = field(default=512)
     repetition_penalty: float = field(default=1.0)
+    num_sample: int = field(default=5e4)
     
 
 def apply_chat_template(message, tokenizer, has_image):
@@ -337,13 +338,6 @@ class AllTaskDataset(Dataset):
         else:
             graph = smiles2graph(self.selfies2smiles(input))
 
-        # messages = [
-        #     [
-        #         {"from": "human", "value": instruction},
-        #         {"from": "gpt", "value": output}
-        #     ]
-        # ]
-
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph is not None))
         input_ids = tokenizer_image_token(prompt, self.tokenizer, -200, return_tensors="pt")
         
@@ -403,36 +397,44 @@ def start_eval(args: EvalArguments):
     dataset = AllTaskDataset(all_data_list, args, tokenizer)
     dataset_len = len(dataset)
     print("All dataset length:", dataset_len)
-    sampler = DistributedSampler(dataset, num_replicas=accelerator.num_processes, shuffle=False, drop_last=False)
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=GraphEvalCollator(tokenizer), drop_last=False, sampler=sampler)
+    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=GraphEvalCollator(tokenizer), drop_last=False)
+    all_batches = []
+    for data in tqdm(loader, desc=f"Sampling data [rank {local_rank}]"):
+        all_batches.append(data)
+        
+    accelerator.wait_for_everyone()
+    all_batches = random.sample(all_batches, int(args.num_sample))
+    print("Sampled length", len(all_batches))
     accelerator.wait_for_everyone()
     
     output = []
-    for idx, batch in enumerate(tqdm(loader, desc=f"inference [rank {local_rank}]")):
-        input_ids, graphs = batch["input_ids"].to(args.device), batch["graphs"].to(args.device)
-        output_ids = model.generate(
-            input_ids,
-            graphs=graphs,
-            do_sample=True,
-            temperature=args.temperature,
-            top_p=args.top_p,
-            num_beams=args.num_beams,
-            max_new_tokens=args.max_new_tokens,
-            repetition_penalty=args.repetition_penalty,
-            use_cache=True,
-            attention_mask=batch["attention_mask"].to(args.device),
-            generation_config=generation_config
-        )
-        
-        for idx, (result, input_id, raw) in enumerate(zip(output_ids, input_ids, batch["raw"])):
-            generated_batch = deepcopy(raw)
-            generated_batch["output"] = tokenizer.decode(result[input_id.shape[0]:], skip_special_tokens=True)
-            this_output = {
-                "real": raw,
-                "generated": generated_batch
-            }
-            output.append(this_output)
-            # print("\n", this_output, "\n")
+    with accelerator.split_between_processes(all_batches) as batch:
+        for idx1, data in enumerate(tqdm(batch, desc=f"inference [rank {local_rank}]")):
+            input_ids, graphs = data["input_ids"].to(args.device), data["graphs"].to(args.device)
+            output_ids = model.generate(
+                input_ids,
+                graphs=graphs,
+                do_sample=True,
+                temperature=args.temperature,
+                top_p=args.top_p,
+                num_beams=args.num_beams,
+                max_new_tokens=args.max_new_tokens,
+                repetition_penalty=args.repetition_penalty,
+                use_cache=True,
+                attention_mask=data["attention_mask"].to(args.device),
+                generation_config=generation_config
+            )
+            
+            for idx2, (result, input_id, raw) in enumerate(zip(output_ids, input_ids, data["raw"])):
+                generated_batch = deepcopy(raw)
+                generated_batch["output"] = tokenizer.decode(result[input_id.shape[0]:], skip_special_tokens=True)
+                this_output = {
+                    "real": raw,
+                    "generated": generated_batch
+                }
+                output.append(this_output)
+                if idx1 < 10:
+                    print("\n", this_output, "\n")
     
     print("Gathering object between processes...")
     results_gathered=gather_object(output)
