@@ -52,6 +52,80 @@ def find_linear_without_moe(model: nn.Module) -> list:
     return lora_module_names
 
 
+def create_selfies_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
+    # 1. Init all configs
+    graph_config = GraphConfig(
+        model_name=model_args.graph_tower,
+        encoder_num_layer=model_args.gin_num_layers,
+        hidden_size=model_args.gin_hidden_dim,
+        encoder_JK='last',
+        encoder_drop_ratio=model_args.drop_ratio,
+        encoder_gnn_type='gin'
+    )
+    # default override to torch.bfloat16 for flash attention
+    text_config = AutoConfig.from_pretrained(
+        model_args.base_model,
+        attn_implementation="flash_attention_2",
+        torch_dtype=torch.bfloat16,
+        )
+    projector_config = ProjectorConfig(
+        projector_type=model_args.mm_projector_type,
+        moe_type=model_args.projector_moe_type,
+        head_type=model_args.head_type,
+        use_mlp=model_args.use_mlp,
+        level=model_args.level,
+        use_head_weight=model_args.use_head_weight,
+        num_query=model_args.num_query,
+        num_heads=model_args.num_heads
+    )
+    config = GraphLlavaConfig(
+        graph_config, 
+        text_config, 
+        projector_config=projector_config,
+        moe_enable=model_args.moe_enable,
+        language_backbone_name=model_args.language_backbone_name,
+        projector_aux_loss_coeff=model_args.projector_aux_loss_coeff
+        )
+    config.use_cache = False
+    text_config.use_cache = False
+    # 2. Instantiate tokenizer, model
+    tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
+    
+    text_config.moe_enable = config.moe_enable = False
+    with no_init_weights():
+        model = GraphLlavaForConditionalGeneration(config)
+        
+    # 3. Load pre-trained LLM, projector and GNN
+    model.load_language_model()
+    model.rand_init_projector()
+    model.load_graph(model_args.graph_init_checkpoint)
+    
+    # 4. Apply LoRA
+    # import lora related functions
+    from peft import LoraConfig, get_peft_model
+    lora_config = LoraConfig(  # initailize a LoRA Config
+        r=training_args.lora_r,
+        lora_alpha=training_args.lora_alpha,
+        target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
+        lora_dropout=training_args.lora_dropout,
+        bias=training_args.lora_bias,
+        task_type="CAUSAL_LM",
+    )
+    if torch.cuda.is_available():
+        print("Moving to cuda for faster warping...")
+        model.to("cuda")
+        
+    print("Adding LoRA adapters...")
+    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    training_args.lora_enable = True
+    model.to("cpu")
+    
+    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    model.mm_projector.requires_grad_(True)
+    
+    return tokenizer, model
+
+
 def create_stage1_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
     """Stage 1 model:
     
@@ -85,7 +159,10 @@ def create_stage1_model(model_args: ModelArguments, training_args: TrainingArgum
         moe_type=model_args.projector_moe_type,
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
-        level=model_args.level
+        level=model_args.level,
+        use_head_weight=model_args.use_head_weight,
+        num_query=model_args.num_query,
+        num_heads=model_args.num_heads
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -153,7 +230,10 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         moe_type=model_args.projector_moe_type,
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
-        level=model_args.level
+        level=model_args.level,
+        use_head_weight=model_args.use_head_weight,
+        num_query=model_args.num_query,
+        num_heads=model_args.num_heads
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -183,7 +263,38 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
     lora_config = LoraConfig(  # initailize a LoRA Config
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
-        use_rslora=True,
+        target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
+        lora_dropout=training_args.lora_dropout,
+        bias=training_args.lora_bias,
+        task_type="CAUSAL_LM",
+    )
+    if torch.cuda.is_available():
+        print("Moving to cuda for faster warping...")
+        model.to("cuda")
+        
+    print("Adding LoRA adapters...")
+    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    training_args.lora_enable = True
+    model.to("cpu")
+    
+    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    model.mm_projector.requires_grad_(True)
+    
+    return tokenizer, model
+
+
+def create_lora2lora_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
+    tokenizer, model = load_lora_model(
+        training_args.stage2_model,
+        model_args.base_model,
+        model_args.graph_init_checkpoint,
+        use_flash_attn=True
+    )
+    
+    from peft import LoraConfig, get_peft_model
+    lora_config = LoraConfig(  # initailize a LoRA Config
+        r=training_args.lora_r,
+        lora_alpha=training_args.lora_alpha,
         target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
@@ -380,7 +491,9 @@ def load_lora_model(
 MODEL_STAGE_MAP = {
     "stage1": create_stage1_model,
     "stage2": create_stage2_model,
-    "stage3": create_stage3_model
+    "stage3": create_stage3_model,
+    "selfies_pretrain": create_selfies_model,
+    "lora2lora": create_lora2lora_model
 }
 
 def create_model(
@@ -393,8 +506,10 @@ def create_model(
     
     # 2. Set correct conversation template
     conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
-    if tokenizer.pad_token is None and "llama3" in model_args.version:
+    if tokenizer.pad_token is None and model_args.version == "llama3":
         tokenizer.pad_token = "<|finetune_right_pad_id|>"
+    elif model_args.version == "tinyllama":
+        tokenizer.pad_token = tokenizer.unk_token
     print("Using conversation template of", model_args.version)
     print("Conversation template:", conversation_lib.default_conversation)
     
