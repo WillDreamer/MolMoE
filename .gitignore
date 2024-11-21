@@ -8,7 +8,7 @@
 /Molecule-oriented_Instructions
 /eval_result
 /scripts/*
-model/__pycache__
-data_pipeline/__pycache__
+/model/__pycache__
+/data_pipeline/__pycache__
 /*.log
 /spin_data/*
