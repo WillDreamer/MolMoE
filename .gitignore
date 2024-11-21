@@ -12,3 +12,4 @@
 /data_pipeline/__pycache__
 /*.log
 /spin_data/*
+/post_train/__pycache__

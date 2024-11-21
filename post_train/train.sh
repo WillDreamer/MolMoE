@@ -3,17 +3,14 @@
 # PROMPT_VERSION="phi3"
 # MODEL_VERSION="phi3-mini"
 
-PROMPT_VERSION="tinyllama"
-MODEL_VERSION="tinyllama"
-
-# PROMPT_VERSION="llama3"
-# MODEL_VERSION="llama3-1b"
+PROMPT_VERSION="llama3"
+MODEL_VERSION="llama3-3b"
 
 GRAPH_TOWER="moleculestm"
 if [ "$GRAPH_TOWER" == "graphmvp" ]; then
     INIT_CHECKPOINT_GNN="checkpoints/graphMVP.pth"
 elif [ "$GRAPH_TOWER" == "moleculestm" ]; then
-    INIT_CHECKPOINT_GNN="downloads/moleculestm.pth"
+    INIT_CHECKPOINT_GNN="/wanghaixin/MolMoE/checkpoints/moleculestm.pth"
 elif [ "$GRAPH_TOWER" == "himol" ]; then
     INIT_CHECKPOINT_GNN="/root/autodl-tmp/MoleculeMoE/MolMoE/checkpoints/himol_encoder.pth"
 else
@@ -23,23 +20,23 @@ fi
 CHECKPOINT_FOLDER_PREFIX="_checkpoints/spin"
 TASK="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap"
 PROJECTOR="naive_linear"
-REMARK="spin-training-test-5e-7"
+REMARK="spin-training"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-deepspeed post_train/train_spin.py \
+/root/anaconda3/bin/deepspeed /wanghaixin/MolMoE/post_train/train_spin.py \
     --deepspeed scripts/zero_configs/zero2.json \
     --training_recipe lora2lora \
-    --stage2_model /root/autodl-tmp/MolMoE/_checkpoints/conflict/lora/conflict-llava-moleculestm-tinyllama-naive_linear-all-task-without-eval-10/15epoch/checkpoint-79130 \
-    --model_name_or_path /root/autodl-tmp/MolMoE/downloads/TinyLlama-1.1B-Chat-v1.0 \
-    --base_model /root/autodl-tmp/MolMoE/downloads/TinyLlama-1.1B-Chat-v1.0 \
+    --stage2_model /wanghaixin/MolMoE/_checkpoints/conflict/lora/conflict-llava-moleculestm-llama3-3b-naive_linear-all-task-rslora-15epoch/checkpoint-161850 \
+    --model_name_or_path /wanghaixin/MolMoE/checkpoints/Llama-3.2-3B-Instruct \
+    --base_model /wanghaixin/MolMoE/checkpoints/Llama-3.2-3B-Instruct \
     --language_backbone_name $MODEL_VERSION \
     --version $PROMPT_VERSION \
-    --data_path /root/autodl-tmp/MolMoE/spin_data/spin_iter_0.json \
+    --data_path /wanghaixin/MolMoE/spin_data/spin_iter_0.json \
     --data_type $TASK \
     --graph_tower $GRAPH_TOWER \
     --mm_projector_type $PROJECTOR \
     --graph_init_checkpoint $INIT_CHECKPOINT_GNN \
-    --pretrain_mm_mlp_adapter /root/autodl-tmp/MolMoE/_checkpoints/pretrain/llava-pub_chem-moleculestm-tinyllama-naive_linear-baseline-linear-projector/checkpoint-30695/mm_projector.bin \
+    --pretrain_mm_mlp_adapter /wanghaixin/MolMoE/_checkpoints/pretrain/basline/llava-pub_chem-moleculestm-llama3-3b-naive_linear-/checkpoint-61385/mm_projector.bin \
     --bf16 True \
     --output_dir $CHECKPOINT_FOLDER_PREFIX/lora/conflict-llava-$GRAPH_TOWER-$MODEL_VERSION-$PROJECTOR-$REMARK \
     --num_train_epochs 3 \
@@ -64,5 +61,5 @@ deepspeed post_train/train_spin.py \
     --dataloader_num_workers 8 \
     --report_to tensorboard \
     --moe_enable False \
-    --logging_dir /root/tf-logs/$TASK-llava-$GRAPH_TOWER-$MODEL_VERSION-$PROJECTOR-$REMARK \
+    --logging_dir /wanghaixin/MolMoE/tf-logs/$TASK-llava-$GRAPH_TOWER-$MODEL_VERSION-$PROJECTOR-$REMARK \
     --is_training True \
