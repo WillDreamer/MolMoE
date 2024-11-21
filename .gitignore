@@ -1,0 +1,14 @@
+/.ipynb_checkpoints
+/__pycache__
+/_checkpoints
+/data_files
+/downloads
+/checkpoints
+/tf-logs
+/Molecule-oriented_Instructions
+/eval_result
+/scripts/*
+model/__pycache__
+data_pipeline/__pycache__
+/*.log
+/spin_data/*
