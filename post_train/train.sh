@@ -22,7 +22,7 @@ fi
 CHECKPOINT_FOLDER_PREFIX="_checkpoints/spin"
 TASK="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap"
 PROJECTOR="naive_linear"
-REMARK="spin-training_lr1e-5"
+REMARK="spin-training_lr5e-6"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 /root/anaconda3/bin/deepspeed /wanghaixin/MolMoE/post_train/train_spin.py \
@@ -42,9 +42,9 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     --bf16 True \
     --output_dir $CHECKPOINT_FOLDER_PREFIX/lora/conflict-llava-$GRAPH_TOWER-$MODEL_VERSION-$PROJECTOR-$REMARK \
     --num_train_epochs 3 \
-    --per_device_train_batch_size 2 \
-    --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --per_device_train_batch_size 1 \
+    --per_device_eval_batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --stop_epoch 3 \
     --eval_strategy "no" \
     --eval_steps 500 \
@@ -52,7 +52,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     --eval_on_start False \
     --save_strategy "epoch" \
     --save_total_limit 1 \
-    --learning_rate 1e-5 \
+    --learning_rate 5e-6 \
     --weight_decay 0. \
     --warmup_ratio 0.0075 \
     --lr_scheduler_type "cosine" \
