@@ -50,7 +50,7 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
         position = file_mask.index(True)
         data_args.data_path = os.path.join(parent, dataset_files[position])
         data = DATASET_MAP[task](tokenizer=tokenizer, data_args=data_args)
-        sampling = True
+        sampling = False
         if sampling:
             train_size = int(len(data) * 0.8)
             data, _ = random_split(data, [train_size, len(data) - train_size])

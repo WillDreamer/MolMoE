@@ -193,6 +193,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
     def replace_mlp_with_moe(self):
         FORWARD_MAP = {
             "llama3-1b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
+            "llama3-3b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
+            "llama3-8b": [MoELlamaDecoderLayerForward, MoELlamaModelForward],
             "phi3-mini": [MoEPhiDecoderLayer_forward, MoEPhiModel_forward]
         }
         if self.config.moe_config.train_modules is not None and len(self.config.moe_config.train_modules) > 0:
