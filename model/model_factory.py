@@ -487,6 +487,44 @@ def load_lora_model(
         
     return tokenizer, model
 
+
+def load_lora2lora_model(
+    model_path: str,
+    language_backbone: str,
+    graph_path: str,
+    use_flash_attn: bool
+) -> tuple[PreTrainedTokenizer, GraphLlavaForConditionalGeneration]:
+    base_lora_path, this_lora_path = model_path.split("+")
+    tokenizer, model = load_lora_model(base_lora_path, language_backbone, graph_path, use_flash_attn)
+    
+    print('Loading additional LLaVA weights...')
+    # Read and process non-lora-trainables, specifically, mm projector
+    if os.path.exists(os.path.join(this_lora_path, 'non_lora_trainables.bin')):
+        non_lora_trainables = torch.load(
+            os.path.join(this_lora_path, 'non_lora_trainables.bin'), map_location='cpu')
+        print("Non-lora trainables:", non_lora_trainables.keys())
+    else:
+        print("No Non-lora weights detected!")
+        raise NotImplementedError
+        
+    non_lora_trainables = {k.split("mm_projector.")[1]: v for k, v in non_lora_trainables.items()}
+    model.mm_projector.load_state_dict(non_lora_trainables)
+    
+    from peft import PeftModel
+    print('Loading LoRA weights...')
+    # Load the second lora adapter
+    model = PeftModel.from_pretrained(model, this_lora_path)
+    print("Moving to CUDA")
+    model.to(torch.device("cuda"))
+    print('Merging LoRA weights...')
+    model = model.merge_and_unload()
+    print("Moving back to CPU")
+    model.to(torch.device("cpu"))
+    print('Model is loaded...')
+    torch.cuda.empty_cache()
+    
+    return tokenizer, model
+
     
 MODEL_STAGE_MAP = {
     "stage1": create_stage1_model,
