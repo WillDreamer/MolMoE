@@ -526,6 +526,21 @@ def load_lora2lora_model(
     
     return tokenizer, model
 
+
+def load_full_model(
+    model_path: str,
+    language_backbone: str,
+    graph_path: str,
+    use_flash_attn: bool
+):
+    model = GraphLlavaForConditionalGeneration.from_pretrained(
+        model_path,
+        _attn_implementation="flash_attention_2" if use_flash_attn else None
+        )
+    tokenizer = AutoTokenizer.from_pretrained(language_backbone)
+    
+    return model, tokenizer
+
     
 MODEL_STAGE_MAP = {
     "stage1": create_stage1_model,
