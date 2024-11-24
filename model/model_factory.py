@@ -231,9 +231,9 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
         level=model_args.level,
-        use_head_weight=model_args.use_head_weight,
-        num_query=model_args.num_query,
-        num_heads=model_args.num_heads
+        # use_head_weight=model_args.use_head_weight,
+        # num_query=model_args.num_query,
+        # num_heads=model_args.num_heads
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -263,6 +263,7 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
     lora_config = LoraConfig(  # initailize a LoRA Config
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
+        use_rslora=True,
         target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
