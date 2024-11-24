@@ -539,7 +539,7 @@ def load_full_model(
         )
     tokenizer = AutoTokenizer.from_pretrained(language_backbone)
     
-    return model, tokenizer
+    return tokenizer,model
 
     
 MODEL_STAGE_MAP = {
