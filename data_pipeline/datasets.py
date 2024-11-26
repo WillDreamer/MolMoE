@@ -422,6 +422,147 @@ class MolcapDataset(MetaGraphDataset):
 
         return data_dict
     
+
+class CatalystPredDataset(MetaGraphDataset):
+    def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
+        super().__init__(tokenizer, data_args)
+        print("=====Catalyst Prediction dataset=====")
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        raw = self.list_data_dict[i]
+        input, output_selfies = raw['input'], raw['output']
+        # input: "reactant>>product"
+        reactant, product = input.split(">>")
+        # convert input selfies to smiles for building graph
+        reactant_smiles = self.selfies2smiles(reactant)
+        if self.data_args.add_selfies:
+            # insert product to the instruction end
+            instruction = raw['instruction'] + f" The reaction is {input}."
+        else:
+            instruction = raw['instruction']
+        # elif len(input) > 1:
+        #     instruction = ""
+        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+
+        instruction = "<image>\n" + instruction
+
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(reactant_smiles)
+        else:
+            graph = smiles2graph(reactant_smiles)
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output_selfies}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                         labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+
+
+class SolventPredDataset(MetaGraphDataset):
+    def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
+        super().__init__(tokenizer, data_args)
+        print("=====Solvent Prediction dataset=====")
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        raw = self.list_data_dict[i]
+        input, output_selfies = raw['input'], raw['output']
+        # input: "reactant>>product"
+        reactant, product = input.split(">>")
+        # convert input selfies to smiles for building graph
+        reactant_smiles = self.selfies2smiles(reactant)
+        if self.data_args.add_selfies:
+            # insert product to the instruction end
+            instruction = raw['instruction'] + f" The reaction is {input}."
+        else:
+            instruction = raw['instruction']
+        # elif len(input) > 1:
+        #     instruction = ""
+        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+
+        instruction = "<image>\n" + instruction
+
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(reactant_smiles)
+        else:
+            graph = smiles2graph(reactant_smiles)
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output_selfies}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                         labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+
+
+class YieldRegressionDataset(MetaGraphDataset):
+    def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
+        super().__init__(tokenizer, data_args)
+        print("=====Yield Regression dataset=====")
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        raw = self.list_data_dict[i]
+        input, output_selfies = raw['input'], raw['output']
+        # input: "reactant>>product"
+        reactant, product = input.split(">>")
+        # convert input selfies to smiles for building graph
+        reactant_smiles = self.selfies2smiles(reactant)
+        if self.data_args.add_selfies:
+            # insert product to the instruction end
+            instruction = raw['instruction'] + f" The reaction is {input}."
+        else:
+            instruction = raw['instruction']
+        # elif len(input) > 1:
+        #     instruction = ""
+        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+
+        instruction = "<image>\n" + instruction
+
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(reactant_smiles)
+        else:
+            graph = smiles2graph(reactant_smiles)
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output_selfies}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                         labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
     
 DATASET_MAP = {
     "forward_pred": ForwardPredDataset,
@@ -429,7 +570,10 @@ DATASET_MAP = {
     "reagent_pred": ReagentPredDataset,
     "retrosynthesis": RetrosynDataset,
     "molcap": MolcapDataset,
-    "property_pred": PropertyPredDataset
+    "property_pred": PropertyPredDataset,
+    "solvent_pred": SolventPredDataset,
+    "catalyst_pred": CatalystPredDataset,
+    "yields_regression": YieldRegressionDataset,
 }
     
 def build_dataset(tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> Dict[str, Any]:
