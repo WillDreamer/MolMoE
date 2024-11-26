@@ -533,12 +533,21 @@ def load_full_model(
     graph_path: str,
     use_flash_attn: bool
 ):
+    
     model = GraphLlavaForConditionalGeneration.from_pretrained(
         model_path,
         _attn_implementation="flash_attention_2" if use_flash_attn else None
         )
     tokenizer = AutoTokenizer.from_pretrained(language_backbone)
-    
+    import deepspeed
+    deepspeed.init_distributed(dist_backend='nccl')
+    # Initialize the DeepSpeed-Inference engine
+    ds_engine = deepspeed.init_inference(model,
+                            # mp_size=2,
+                            # dtype=torch.half,
+                            checkpoint=None,
+                            replace_with_kernel_inject=False)
+    model = ds_engine.module
     return tokenizer,model
 
     

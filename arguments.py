@@ -43,7 +43,7 @@ class ModelArguments:
             "choices": [1, 2],
         },
     )
-    capacity_factor: float = field(default=1.)
+    capacity_factor: float = field(default=1)
     eval_capacity_factor: float = field(default=2.)
     min_capacity: int = field(default=0)
     use_residual: bool = field(default=False)

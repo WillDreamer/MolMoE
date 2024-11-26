@@ -653,6 +653,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                         
                     loss += moe_loss
 
+        moe_loss, moe_losses = None, []
         if not return_dict:
             output = (logits,) + outputs[1:]
             output = (moe_loss,) + output if moe_loss is not None else output
