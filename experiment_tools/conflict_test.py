@@ -35,12 +35,15 @@ def parse_args() -> tuple[ModelArguments, DataArguments, TrainingArguments, Expe
 def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs):
     tasks = exp_args.task.split("/")
     print("Using datasets", tasks)
-    SIMPLE_MAP = {
+    SIMPLE_MAP = { 
         "forward_pred": "forward",
         "retrosynthesis": "retrosynthesis",
         "reagent_pred": "reagent",
         "property_pred": "property",
-        "molcap": "molcap_train"
+        "molcap": "molcap_train",
+        "catalyst_pred": "catalyst",
+        "solvent_pred": "solvent",
+        "yields_regression": "yields",
     }
     datasets = []
     dataset_files = os.listdir(data_args.data_path)
