@@ -401,9 +401,9 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
         level=model_args.level,
-        use_head_weight=model_args.use_head_weight,
-        num_query=model_args.num_query,
-        num_heads=model_args.num_heads
+        # use_head_weight=model_args.use_head_weight,
+        # num_query=model_args.num_query,
+        # num_heads=model_args.num_heads
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -663,7 +663,8 @@ MODEL_STAGE_MAP = {
     "stage2": create_stage2_model,
     "stage3": create_stage3_model,
     "selfies_pretrain": create_selfies_model,
-    "lora2lora": create_lora2lora_model
+    "lora2lora": create_lora2lora_model,
+    "moe+lora": create_moe_lora_model,
 }
 
 def create_model(

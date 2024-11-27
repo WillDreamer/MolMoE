@@ -548,7 +548,7 @@ class YieldRegressionDataset(MetaGraphDataset):
         messages = [
             [
                 {"from": "human", "value": instruction},
-                {"from": "gpt", "value": output_selfies}
+                {"from": "gpt", "value": str(output_selfies)}
             ]
         ]
 
