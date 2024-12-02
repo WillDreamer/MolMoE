@@ -657,6 +657,67 @@ def load_full_model(
     model = ds_engine.module
     return tokenizer,model
 
+def load_moe_lora_model(
+    model_path: str,
+    language_backbone: str,
+    graph_path: str,
+    use_flash_attn: bool
+):
+    # 1. Build base language model
+    config = GraphLlavaConfig.from_pretrained(model_path)
+    if use_flash_attn:
+        config._attn_implementation = "flash_attention_2"
+        config.text_config._attn_implementation = "flash_attention_2"
+    with no_init_weights():
+        model = GraphLlavaForConditionalGeneration(config)
+        
+    tokenizer = AutoTokenizer.from_pretrained(language_backbone)
+    model.load_language_model()
+    model.load_graph(graph_path)
+    
+    # 2. Expand to MoE
+    model.replace_mlp_with_moe()
+    
+    # 3. Load MoE and projctor weights
+    print('Loading additional LLaVA weights...')
+    if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
+        non_lora_trainables = torch.load(
+            os.path.join(model_path, 'non_lora_trainables.bin'), map_location='cpu')
+        print("Non-lora trainables:", non_lora_trainables.keys())
+    else:
+        print("No Non-lora weights detected!")
+        raise NotImplementedError
+    non_lora_state_dict = {k.split("base_model.model.")[1]: v for k, v in non_lora_trainables.items()}
+    
+    model.load_state_dict(non_lora_state_dict, strict=False)
+    
+    # 4. load and merge lora
+    from peft import PeftModel
+    print('Loading LoRA weights...')
+    model = PeftModel.from_pretrained(model, model_path)
+    print("Moving to CUDA")
+    model.to(torch.device("cuda"))
+    print('Merging LoRA weights...')
+    model = model.merge_and_unload()
+    print("Moving back to CPU")
+    model.to(torch.device("cpu"))
+    print('Model is loaded...')
+    torch.cuda.empty_cache()
+    
+    # 5. deepspeed engine
+    import deepspeed
+    deepspeed.init_distributed(dist_backend='nccl')
+    # Initialize the DeepSpeed-Inference engine
+    ds_engine = deepspeed.init_inference(model,
+                                            # mp_size=2,
+                                            # dtype=torch.half,
+                                            checkpoint=None,
+                                            replace_with_kernel_inject=False)
+    model = ds_engine.module
+        
+    return tokenizer, model
+
+
     
 MODEL_STAGE_MAP = {
     "stage1": create_stage1_model,
