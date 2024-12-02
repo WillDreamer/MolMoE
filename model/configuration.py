@@ -140,5 +140,6 @@ class GraphLlavaConfig(PretrainedConfig):
         self.graph_config = graph_config
         self.projector_config = projector_config
         self.text_config = text_config
+        self.moe_config = moe_config
 
         super().__init__(**kwargs)
