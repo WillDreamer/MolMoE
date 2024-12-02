@@ -1,4 +1,4 @@
-from model.model_factory import load_pretrain_model, load_lora_model, load_lora2lora_model, load_full_model
+from model.model_factory import load_pretrain_model, load_lora_model, load_lora2lora_model, load_full_model, load_moe_lora_model
 from transformers import HfArgumentParser, GenerationConfig, PreTrainedTokenizer
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,7 +50,8 @@ MODEL_LOADER_MAP = {
     "pretrain": load_pretrain_model,
     "lora": load_lora_model,
     "lora2lora": load_lora2lora_model,
-    "full": load_full_model
+    "full": load_full_model,
+    "lora+moe": load_moe_lora_model
 }
 
 DTYPE_MAP = {
