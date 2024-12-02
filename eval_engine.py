@@ -426,12 +426,13 @@ def start_eval(args: EvalArguments):
     
     dataset = TASK_MAP[args.task](args=args, tokenizer=tokenizer)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=GraphEvalCollator(tokenizer), drop_last=False)
-    if os.environ.get("LOCAL_RANK", None) is not None:
+    if local_rank is not None:
         all_batches = []
         for data in tqdm(loader, desc="Sampling all data"):
             all_batches.append(data)
         accelerator.wait_for_everyone()
         output = []
+        cnt = 0
         with accelerator.split_between_processes(all_batches) as batch:
             for each in tqdm(batch, desc=f"Inference [rank {local_rank}]"):
                 input_ids, graphs = each["input_ids"].to(args.device), each["graphs"].to(args.device)
@@ -456,7 +457,10 @@ def start_eval(args: EvalArguments):
                         "pred": tokenizer.decode(result[input_id.shape[0]:])
                     }
                     output.append(this_output)
-                    # print("\n", this_output, "\n")
+                    if cnt < 10:
+                        print("\n", this_output, "\n")
+                    
+                cnt += 1
         print("Gathering object from processes...")       
         output = gather_object(output)
     else:      
