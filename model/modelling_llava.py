@@ -625,6 +625,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         projector_aux_loss
     ):
         loss = None
+        moe_losses = []
+        model_loss = None
         if labels is not None:
             # Shift so that tokens < n predict n
             shift_logits = logits[..., :-1, :].contiguous()
@@ -653,7 +655,6 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                         
                     loss += moe_loss
 
-        moe_loss, moe_losses = None, []
         if not return_dict:
             output = (logits,) + outputs[1:]
             output = (moe_loss,) + output if moe_loss is not None else output
@@ -675,7 +676,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         return_class.labels = labels  # for spin training
         
         return return_class
-        
+
     def vanilla_forward(
         self,
         labels, 

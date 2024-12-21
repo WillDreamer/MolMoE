@@ -24,8 +24,8 @@ from torch.utils.data import ConcatDataset, random_split
 @dataclass
 class ExperimentArgs:
     # task: str = field(default="reagent_pred/property_pred")
-    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
-    task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression")
+    task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
+    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression")
 def parse_args() -> tuple[ModelArguments, DataArguments, TrainingArguments, ExperimentArgs]:
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, ExperimentArgs))
     model_args, data_args, training_args, exp_args = parser.parse_args_into_dataclasses()

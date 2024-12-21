@@ -34,7 +34,6 @@ def find_all_linear_names(model: nn.Module) -> list:
         lora_module_names.remove('lm_head')  # exclude lm_head
     return list(lora_module_names)
 
-
 def find_linear_without_moe(model: nn.Module) -> list:
     """Find all linear modules except for graph_tower, mm_projector and lm_head
 
@@ -47,10 +46,27 @@ def find_linear_without_moe(model: nn.Module) -> list:
     cls = torch.nn.Linear
     lora_module_names = list()
     for name, module in model.named_modules():
-        if ("graph_tower" not in name) and ("mm_projector" not in name) and ("lm_head" not in name) and isinstance(module, cls) and ("deepspeed_moe" not in name):
+        if ("graph_tower" not in name) and ("mm_projector" not in name) and ("lm_head" not in name) and isinstance(module, cls) and ("deepspeed_moe" not in name) and ("mlp.mlp" not in name) and ("mlp.coefficient" not in name):
             lora_module_names.append(name)
             
     return lora_module_names
+
+# def find_linear_without_moe(model: nn.Module) -> list:
+#     """Find all linear modules except for graph_tower, mm_projector and lm_head
+
+#     Args:
+#         model (nn.Module): Model
+
+#     Returns:
+#         list: list of found modules
+#     """
+#     cls = torch.nn.Linear
+#     lora_module_names = list()
+#     for name, module in model.named_modules():
+#         if ("graph_tower" not in name) and ("mm_projector" not in name) and ("lm_head" not in name) and isinstance(module, cls) and ("deepspeed_moe" not in name):
+#             lora_module_names.append(name)
+            
+#     return lora_module_names
 
 
 def create_selfies_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
@@ -481,6 +497,8 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
     for name, module in model.named_modules():
         if isinstance(module, MoE):
             module.requires_grad_(True)
+            # nn.init.constant_(module.deepspeed_moe.gate.wg.weight, val=0.01)
+            nn.init.kaiming_normal_(module.deepspeed_moe.gate.wg.weight, a=4.2, mode="fan_out")
     
     return tokenizer, model
     
