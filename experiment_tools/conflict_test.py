@@ -24,8 +24,8 @@ from torch.utils.data import ConcatDataset, random_split
 @dataclass
 class ExperimentArgs:
     # task: str = field(default="reagent_pred/property_pred")
-    task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
-    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression")
+    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
+    task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression")
 def parse_args() -> tuple[ModelArguments, DataArguments, TrainingArguments, ExperimentArgs]:
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, ExperimentArgs))
     model_args, data_args, training_args, exp_args = parser.parse_args_into_dataclasses()
@@ -44,6 +44,14 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
         "catalyst_pred": "catalyst",
         "solvent_pred": "solvent",
         "yields_regression": "yields",
+        "scf_pred": "3d_moit",
+        "logp_pred": "3d_moit",
+        "description_qa": "3d_moit",
+        "weight_pred": "3d_moit",
+        "tpsa_pred": "3d_moit",
+        "complexity_pred": "3d_moit",
+        "exp_procedure_pred": "exp_procedure",
+        "compound_list_selection": "compound_list"
     }
     datasets = []
     dataset_files = os.listdir(data_args.data_path)

@@ -564,6 +564,359 @@ class YieldRegressionDataset(MetaGraphDataset):
         return data_dict
     
     
+class ExpProcedurePrediction(MetaGraphDataset):
+    def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
+        super().__init__(tokenizer, data_args)
+        print("=====Experimental Procedure Prediction dataset=====")
+        print("The actual length for experimental procedure pred is", len(self.list_data_dict))
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        # 取出数据条目
+        raw = self.list_data_dict[i]
+
+        # 从raw中提取extracted_molecules字典
+        extracted_molecules = raw.get("extracted_molecules", {})
+
+        # extracted_molecules是 {SMILES: "$1$"} 的形式，需要反转成 {"$1$": SMILES} 方便查询
+        placeholder_to_smiles = {placeholder: smi for smi, placeholder in extracted_molecules.items()}
+
+        # 从raw["input"]中查找所有占位符（例如$1$, $2$, $-1$等）
+        placeholders = re.findall(r"\$\d+\$", raw["input"])
+
+        # 收集匹配到的所有SMILES
+        smiles_list = []
+        for ph in placeholders:
+            # 如果该占位符在placeholder_to_smiles中，则取出对应的SMILES
+            if ph in placeholder_to_smiles:
+                smiles_list.append(placeholder_to_smiles[ph])
+
+        # 将所有SMILES用"."连接，形成一个字符串
+        smiles = ".".join(smiles_list)
+
+        # 使用raw["input"]和raw["output"]构造instruction
+        input, output_selfies = raw['input'], raw['output']
+        instruction = raw['instruction'] + f"{input}. "
+        instruction += "The Action Sequence: "
+        instruction = "<image>\n" + instruction
+
+        # 根据data_args决定是用himol还是smiles2graph构造graph
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(smiles)
+        else:
+            graph = smiles2graph(smiles)
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output_selfies}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                         labels=data_dict["labels"][0])
+
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+    
+class SCFPrediction(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "SCF Energy"]
+        print("========SCF Prediction=========")
+        print("The actual length for SCF is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The molecule SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(mol))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+    
+class LogPPrediction(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "LogP"]
+        print("========LogP Prediction=========")
+        print("The actual length for LogP is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The molecule SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(mol))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+
+class DescriptionQA(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Description"]
+        print("========Description QA=========")
+        print("The actual length for Description QA is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        to_graph = mol.split(".")[0]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The compound SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(to_graph))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+    
+class CompoundSelection(MetaGraphDataset):
+    def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
+        super().__init__(tokenizer, data_args)
+        print("=====Compound List Selection dataset=====")
+        print("The actual length for compound selection is", len(self.list_data_dict))
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        # 取出数据条目
+        raw = self.list_data_dict[i]
+
+        # 使用raw["input"]和raw["output"]构造instruction
+        input, output_selfies = raw['input'], raw['output']
+        instruction = raw['instruction']
+        instruction = "<image>\n" + instruction
+        sel = input.split(">>")[0].split(">")[0].split(".")[0]
+        smiles = self.selfies2smiles(sel)
+        # 根据data_args决定是用himol还是smiles2graph构造graph
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(smiles)
+        else:
+            graph = smiles2graph(smiles)
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output_selfies}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                         labels=data_dict["labels"][0])
+
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+
+class WeightPrediction(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Molecular Weight"]
+        print("========Weight Prediction=========")
+        print("The actual length for Weight Prediction is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The molecule SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(mol))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+class TPSAPrediction(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Molecular Weight"]
+        print("========Weight Prediction=========")
+        print("The actual length for Weight Prediction is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        to_graph = mol.split(".")[0]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The compound SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(to_graph))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+    
+class ComlexityPrediction(MetaGraphDataset):
+    def __init__(self, tokenizer, data_args):
+        super().__init__(tokenizer, data_args)
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Molecular Weight"]
+        print("========Weight Prediction=========")
+        print("The actual length for Weight Prediction is", len(self.list_data_dict))
+        
+    def __getitem__(self, i):
+        raw = self.list_data_dict[i]
+        instruction = raw["instruction"]
+        mol = raw["input"]
+        to_graph = mol.split(".")[0]
+        output = raw["output"]
+        
+        if self.data_args.add_selfies:
+            instruction += f" The compound SELFIES sequence is: {mol}"
+
+        instruction = "<image>\n" + instruction
+        
+        if self.data_args.graph_tower == "himol":
+            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+        else:
+            graph = smiles2graph(self.selfies2smiles(to_graph))
+
+        messages = [
+            [
+                {"from": "human", "value": instruction},
+                {"from": "gpt", "value": output}
+            ]
+        ]
+
+        data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph is not None))
+        data_dict = dict(input_ids=data_dict["input_ids"][0],
+                            labels=data_dict["labels"][0])
+
+        # graph exist in the data
+        if graph is not None:
+            data_dict['graphs'] = graph
+            assert -200 in data_dict["input_ids"]
+
+        return data_dict
+    
+    
 DATASET_MAP = {
     "forward_pred": ForwardPredDataset,
     "pub_chem": PretrainMolDataset,
@@ -574,6 +927,14 @@ DATASET_MAP = {
     "solvent_pred": SolventPredDataset,
     "catalyst_pred": CatalystPredDataset,
     "yields_regression": YieldRegressionDataset,
+    "compound_list_selection": CompoundSelection,
+    "exp_procedure_pred": ExpProcedurePrediction,
+    "scf_pred": SCFPrediction,
+    "logp_pred": LogPPrediction,
+    "description_qa": DescriptionQA,
+    "weight_pred": WeightPrediction,
+    "tpsa_pred": TPSAPrediction,
+    "complexity_pred": ComlexityPrediction
 }
     
 def build_dataset(tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> Dict[str, Any]:
