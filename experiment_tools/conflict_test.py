@@ -23,9 +23,9 @@ from torch.utils.data import ConcatDataset, random_split
 
 @dataclass
 class ExperimentArgs:
-    # task: str = field(default="reagent_pred/property_pred")
+    task: str = field(default="reagent_pred/molcap/solvent_pred")
     # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
-    task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression")
+    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression/compound_list_selection/exp_procedure_pred/scf_pred/logp_pred/description_qa/weight_pred/tpsa_pred/complexity_pred")
 def parse_args() -> tuple[ModelArguments, DataArguments, TrainingArguments, ExperimentArgs]:
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, ExperimentArgs))
     model_args, data_args, training_args, exp_args = parser.parse_args_into_dataclasses()
@@ -67,7 +67,7 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
             data, _ = random_split(data, [train_size, len(data) - train_size])
         if data_args.over_sampling:
             from torch.utils.data import WeightedRandomSampler
-            target_size = int(len(data) * 1.5)  # 目标大小是原始数据集的x倍
+            target_size = int(len(data) * 1.)  # 目标大小是原始数据集的x倍
             sampler = WeightedRandomSampler(
                 weights=[1] * len(data),  # 均匀采样权重
                 num_samples=target_size,

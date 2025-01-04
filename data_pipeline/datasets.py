@@ -15,6 +15,7 @@ from typing import Sequence, Dict, Tuple, List, Any
 from torch.utils import data
 import random
 import pandas as pd
+import re
 IGNORE_INDEX = -100
 
  
@@ -567,6 +568,8 @@ class YieldRegressionDataset(MetaGraphDataset):
 class ExpProcedurePrediction(MetaGraphDataset):
     def __init__(self, tokenizer: PreTrainedTokenizer, data_args: DataArguments) -> None:
         super().__init__(tokenizer, data_args)
+        
+        self.list_data_dict = self.list_data_dict[::2]
         print("=====Experimental Procedure Prediction dataset=====")
         print("The actual length for experimental procedure pred is", len(self.list_data_dict))
 
@@ -627,6 +630,8 @@ class SCFPrediction(MetaGraphDataset):
     def __init__(self, tokenizer, data_args):
         super().__init__(tokenizer, data_args)
         self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "SCF Energy"]
+        
+        self.list_data_dict = self.list_data_dict[::4]
         print("========SCF Prediction=========")
         print("The actual length for SCF is", len(self.list_data_dict))
         
@@ -834,9 +839,9 @@ class WeightPrediction(MetaGraphDataset):
 class TPSAPrediction(MetaGraphDataset):
     def __init__(self, tokenizer, data_args):
         super().__init__(tokenizer, data_args)
-        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Molecular Weight"]
-        print("========Weight Prediction=========")
-        print("The actual length for Weight Prediction is", len(self.list_data_dict))
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Topological Polar Surface Area"]
+        print("========Topological Polar Surface Area=========")
+        print("The actual length for Topological Polar Surface Area is", len(self.list_data_dict))
         
     def __getitem__(self, i):
         raw = self.list_data_dict[i]
@@ -877,9 +882,9 @@ class TPSAPrediction(MetaGraphDataset):
 class ComlexityPrediction(MetaGraphDataset):
     def __init__(self, tokenizer, data_args):
         super().__init__(tokenizer, data_args)
-        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Molecular Weight"]
-        print("========Weight Prediction=========")
-        print("The actual length for Weight Prediction is", len(self.list_data_dict))
+        self.list_data_dict = [raw for raw in self.list_data_dict if raw["metadata"]["task"] == "Complexity"]
+        print("========Complexity=========")
+        print("The actual length for complexity is", len(self.list_data_dict))
         
     def __getitem__(self, i):
         raw = self.list_data_dict[i]
@@ -919,6 +924,7 @@ class ComlexityPrediction(MetaGraphDataset):
     
 DATASET_MAP = {
     "forward_pred": ForwardPredDataset,
+
     "pub_chem": PretrainMolDataset,
     "reagent_pred": ReagentPredDataset,
     "retrosynthesis": RetrosynDataset,
