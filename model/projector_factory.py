@@ -22,7 +22,7 @@ class Type1MoE(nn.Module):
         )
         
     def forward(self, features: torch.Tensor):
-        # features: B, level, N, d
+        
         B, L, N, D = features.shape
         features = features.permute(0, 2, 1, 3).reshape(B*N, L, D)
         features = self.moe_layer(features)
@@ -47,7 +47,7 @@ class Type2MoE(nn.Module):
         )
         
     def forward(self, features: torch.Tensor):
-        # features: B, N, d
+        
         features = self.moe_layer(features)
         
         return features[0], features[1]
@@ -68,20 +68,20 @@ class GAPHead(nn.Module):
     @staticmethod
     def parallel_mean_pooling(features: NestedTensor):
         if len(features.tensors.shape) == 4:
-            # We are in B, L, N, D setting
-            tensors = features.tensors.flatten(1, 2)  # B, tokens, d
-            masks = features.mask.flatten(1, 2)       # B, tokens
+            
+            tensors = features.tensors.flatten(1, 2)  
+            masks = features.mask.flatten(1, 2)       
         else:
-            # We are in B, N, D setting
-            tensors, masks = features.decompose() # B, tokens, d
+            
+            tensors, masks = features.decompose() 
         
         not_masks = ~masks
         
-        # Sum and count the non-masked elements
-        sum_features = tensors.sum(dim=1)  # B, d
-        count_nonmasked = not_masks.sum(dim=1, keepdim=True)  # B, 1
         
-        # Avoid division by zero
+        sum_features = tensors.sum(dim=1)  
+        count_nonmasked = not_masks.sum(dim=1, keepdim=True)  
+        
+        
         count_nonmasked = count_nonmasked.clamp(min=1)
         effective_features = sum_features / count_nonmasked
     
@@ -117,9 +117,9 @@ class WeightedHead(nn.Module):
         return torch.stack(batch, dim=0)
     
     def pool_levels(self, x: NestedTensor):
-        # B, N, D
+        
         node, motif, graph = x.tensors.permute(1, 0, 2, 3).unbind(0)
-        # B, N
+        
         not_mask = ~x.mask
         node_m, motif_m, graph_m = not_mask.permute(1, 0, 2).unbind(0)
         
@@ -131,7 +131,7 @@ class WeightedHead(nn.Module):
         
                 
     def forward(self, graph_feature, x):
-        # B, level, N, D
+        
         x = NestedTensor(self.projector(x.tensors), x.mask)
         weights = self.combiner(graph_feature.mean(tuple(range(1, graph_feature.dim() - 1)))).softmax(-1)
         node, motif, graph = weights.unbind(0)

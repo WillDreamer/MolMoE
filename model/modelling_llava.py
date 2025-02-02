@@ -75,7 +75,7 @@ class GraphTower(nn.Module):
         return self.gnn(*args, **kwargs)
     
     def encode_mol(self, *args, **kwargs):
-        # legacy graph ecnoder compatibility
+        
         return self.gnn.encode_mol(*args, **kwargs)
     
     def load_state_dict(self, *args, **kwargs):
@@ -91,9 +91,9 @@ class LlavaPreTrainedModel(PreTrainedModel):
     _supports_flash_attn_2 = True
 
     def _init_weights(self, module):
-        # important: this ported version of Llava isn't meant for training from scratch - only
-        # inference and fine-tuning - so the proper init weights code has been removed - the original codebase
-        # https://github.com/haotian-liu/LLaVA/tree/main/llava should serve for that purpose
+        
+        
+        
         std = (
             self.config.initializer_range
             if hasattr(self.config, "initializer_range")
@@ -129,14 +129,14 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             config (GraphLlavaConfig): Config of GraphLLaVA
         """
         super().__init__(config)
-        # GRAPH TOWER ==============
+        
         self.graph_tower = GraphTower(config.graph_config)
         
-        # PROJECTOR ===================
-        # self.mm_projector = pooled_moe(config.graph_config.hidden_size, config.text_config.hidden_size,"type1")
+        
+        
         self.mm_projector = create_projector(config.graph_config, config.text_config, config.projector_config)
         
-        # LLM =================================
+        
         self.vocab_size = config.text_config.vocab_size
         lm_cls = MODEL_CLS_MAP[config.language_backbone_name]
         print("Equipped with", config.language_backbone_name)
@@ -148,7 +148,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         self.pad_token_id = self.config.pad_token_id if self.config.pad_token_id is not None else -1
         self.config.hidden_size = self.config.text_config.hidden_size
         
-        # self.apply(self._init_weight)
+        
         
     def load_graph(self, path2graph: str) -> None:
         """Load graph ckpt to the model's graph tower
@@ -183,8 +183,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             )
         
     def rand_init_projector(self):
-        # Let's create the projector again, this can perfectly simulate
-        # the enviroment without _no_init_weight context manager
+        
+        
         self.mm_projector = create_projector(self.config.graph_config, self.config.text_config, self.config.projector_config)
         for name, module in self.mm_projector.named_modules():
             if isinstance(module, nn.Linear):
@@ -248,24 +248,24 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                 min_capacity=self.config.moe_config.min_capacity,
                 use_residual=self.config.moe_config.use_residual,
             )
-            # moe_layer.requires_grad_(True)
+            
             if self.config.moe_config.enable_lottery_trick:
-                if cnt > 3:  # NOTE: for our poor VRAM, let's add only on last 4 layers...
+                if cnt > 3:  
                     print("Gradient mask enabled, prune", self.config.moe_config.pruning_percent, "percent")
-                    # in-place modification
+                    
                     create_lottery(moe_layer, self.config.moe_config.pruning_percent)
                 self.language_model.model.layers[layer_num].mlp = moe_layer
             else:
                 self.language_model.model.layers[layer_num].mlp = moe_layer
                 
-            for e in self.language_model.model.layers[layer_num].mlp.deepspeed_moe.experts.deepspeed_experts:  # check weight
+            for e in self.language_model.model.layers[layer_num].mlp.deepspeed_moe.experts.deepspeed_experts:  
                 loaded_state_dict = e.state_dict()
                 assert all([torch.allclose(pretrained_state_dict[k], v) for k, v in loaded_state_dict.items()])
                 assert all([torch.allclose(loaded_state_dict[k], v) for k, v in pretrained_state_dict.items()])
                 
             cnt += 1
                 
-        # ipdb.set_trace()
+        
         print(f"LLM num_layers: {num_layers}, MoE num_layers: {len(moe_layers_idx)}, where\n",
                     *[f'layer-{layer_num} has {num_experts} experts\n' for num_experts, layer_num in
                       zip(self.config.moe_config.num_experts, moe_layers_idx)])
@@ -301,13 +301,13 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
 
     def resize_token_embeddings(self, new_num_tokens: Optional[int] = None, pad_to_multiple_of=None) -> nn.Embedding:
         model_embeds = self.language_model.resize_token_embeddings(new_num_tokens, pad_to_multiple_of)
-        # update vocab size
+        
         self.config.text_config.vocab_size = model_embeds.num_embeddings
         self.vocab_size = model_embeds.num_embeddings
         return model_embeds
     
     def encode_mol_v2(self, mol, batch_size, device) -> torch.Tensor:
-        # 1. Encode feature with graph encoder
+        
         def himol_encode(mol, batch_size):
             return self.graph_tower.float()(Batch.from_data_list(mol), batch_size)
             
@@ -321,8 +321,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             "moleculestm": mvp_stm_encode
         }
         h_node = encode_map[self.config.graph_config.model_name](mol, batch_size)
-        # 2. Convert feature to desired shape if it's GraphFeature(only HiMol encoder has)
-        # also get the dtype
+        
+        
         if isinstance(h_node, GraphFeature):
             if getattr(self.mm_projector, "data_shape", None) is not None:
                 h_node = h_node.pad_to(self.mm_projector.data_shape)
@@ -334,14 +334,14 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         else:
             dtype = h_node.dtype
             
-        # 3. Judge and convert h_node to float32
+        
         if dtype == torch.bfloat16:
             if isinstance(h_node, NestedTensor):
                 h_node = NestedTensor(h_node.tensors.float(), h_node.mask)
             else:
                 h_node = h_node.float()
                 
-        # 4. Judge and feed h_node to projector
+        
         aux_loss = None
         graph_features = None
         if "type" in self.config.projector_config.projector_type:
@@ -365,33 +365,33 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         labels: torch.LongTensor, 
         graphs: torch.FloatTensor
     ):
-        # <image>
-        # [[0.2, 0.3, 0.4], [0.2, 0.3, 0.4], [0.1, 0.3, 0.4]]
-        # graph token: [[0.3, 0.1, 0.5]]
-        # [[0.3, 0.1, 0.5], [0.2 ,0.3, 0.4], [0.2, 0.3, 0.4], [0.1, 0.3, 0.4]]
-        graph_tower = self.graph_tower  # get graph encoder
+        
+        
+        
+        
+        graph_tower = self.graph_tower  
         """
         NOTE
         Borrowed the code from Transformers legacy processing
         Checked the code, it can generate correct attention mask in forward prediction
         """
         if graph_tower is None or graphs is None or input_ids.shape[1] == 1:
-            # In case input_ids.shape[1] == 1 & graphs==None & past_key_values != None, we are in the case of
-            # generation with cache
+            
+            
             if past_key_values is not None and graph_tower is not None and graphs is not None and input_ids.shape[1] == 1:
-                # Retrieve the first layer to inspect the logits and mask out the hidden states
-                # that are set to 0
-                # Structure of kv cache:
-                # tuple[tuple[torch.Tensor]]
-                # first tuple: layers
-                # second tuple: K, V
-                # torch.Tensor: B, num_head, cache_length, head_dim
+                
+                
+                
+                
+                
+                
+                
                 first_layer_past_key_value = past_key_values[0][0][:, :, :, 0]
 
-                # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
+                
                 batch_index, non_attended_tokens = torch.where(first_layer_past_key_value.float().sum(-2) == 0)
 
-                # Get the target length
+                
                 target_length = input_ids.shape[1]
                 past_length = first_layer_past_key_value.shape[-1]
 
@@ -401,14 +401,14 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                     device=attention_mask.device,
                 )
 
-                # Filter out only the tokens that can be un-attended, this can happen
-                # if one uses Llava + Fused modules where the cache on the
-                # first iteration is already big enough, or if one passes custom cache
+                
+                
+                
                 valid_indices = non_attended_tokens < extended_attention_mask.size(-1)
                 new_batch_index = batch_index[valid_indices]
                 new_non_attended_tokens = non_attended_tokens[valid_indices]
 
-                # Zero-out the places where we don't need to attend
+                
                 extended_attention_mask[new_batch_index, new_non_attended_tokens] = 0
 
                 attention_mask = torch.cat((extended_attention_mask, attention_mask[:, -target_length:]), dim=1)
@@ -417,31 +417,31 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             return input_ids, attention_mask, None, past_key_values, None, labels, None
         
         if type(graphs) is list:
-            # skip `to_data_list`
+            
             assert len(graphs) == input_ids.shape[0]
         else:
             graphs = graphs.to_data_list()
         
-        # encode graphs and append to graph features to a list
+        
         batch_size = input_ids.shape[0]
         projector_aux_loss = None
         if self.config.graph_config.model_name == "himol":
             graph_features, projector_aux_loss = self.encode_mol_v2(graphs, batch_size, input_ids.device)
         else:
-            # legacy GNNs need to encode graphs one by one along batch dimension
+            
             graph_features = []
             for graph in graphs:
                 graph_feat, _ = self.encode_mol_v2(graph, batch_size, input_ids.device)
                 graph_features.append(graph_feat)
             
-        # print("Original Inside graph feature====", graph_features[0])
+        
             
         new_input_embeds = []
         new_labels = [] if labels is not None else None
         cur_graph_idx = 0
-        # input_ids: [B, L]
+        
         for batch_idx, cur_input_ids in enumerate(input_ids):
-            if (cur_input_ids == self.config.image_token_index).sum() == 0:  # no image token in current ids
+            if (cur_input_ids == self.config.image_token_index).sum() == 0:  
                 cur_input_embeds = self.language_model.model.embed_tokens(cur_input_ids)
                 cur_input_embeds = cur_input_embeds + (0. * self.mm_projector(graph_tower.dummy_feature)).sum()
                 new_input_embeds.append(cur_input_embeds)
@@ -449,7 +449,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                     new_labels.append(labels[batch_idx])
                 cur_graph_idx += 1
                 continue
-            # find the position of image token(they use image token to mark the graph)
+            
             graph_token_indices = torch.where(cur_input_ids == self.config.image_token_index)[0]
             cur_new_input_embeds = []
             if labels is not None:
@@ -461,49 +461,49 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                 if self.config.graph_config.model_name == "himol" and len(cur_graph_features.shape) == 1:
                     cur_graph_features = cur_graph_features.unsqueeze(0)
                     
-                graph_token_start = graph_token_indices[0]  # obtain the position from tuple
-                # we are tuning mm projector and using image start end token
+                graph_token_start = graph_token_indices[0]  
+                
                 if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
-                    # 0:graph_token-1, embed 0, 1, ..., graph_token_pos-2
+                    
                     cur_new_input_embeds.append(self.language_model.model.embed_tokens(cur_input_ids[:graph_token_start-1]).detach())
-                    # graph_token_pos-1:graph_token_pos, embed graph_token_pos-1
+                    
                     cur_new_input_embeds.append(self.language_model.model.embed_tokens(cur_input_ids[graph_token_start-1:graph_token_start]))
-                    # graph features
+                    
                     cur_new_input_embeds.append(cur_graph_features)
-                    # graph_token_pos+1:graph_token_pos+2, embed graph_token_pos+1
+                    
                     cur_new_input_embeds.append(self.language_model.model.embed_tokens(cur_input_ids[graph_token_start+1:graph_token_start+2]))
-                    # total embedding of: 0,1,...,graph_token_pos-2, graph_token_pos-1, graph_features, graph_token_pos+1
+                    
                     if labels is not None:
                         cur_new_labels.append(cur_labels[:graph_token_start])
                         cur_new_labels.append(torch.full((cur_graph_features.shape[0],), IGNORE_INDEX, device=labels.device, dtype=labels.dtype))
                         cur_new_labels.append(cur_labels[graph_token_start:graph_token_start+1])
                         cur_labels = cur_labels[graph_token_start+2:]
-                else:  # Maybe not using im start end? True <image>
-                    # 0:graph_token_pos, embed 0,1,..., graph_token_pos-1
+                else:  
+                    
                     cur_new_input_embeds.append(self.language_model.model.embed_tokens(cur_input_ids[:graph_token_start]))
-                    # append graph features
+                    
                     cur_new_input_embeds.append(cur_graph_features.type_as(cur_new_input_embeds[0]))
-                    # total embedding of 0,1,...,graph_token_pos-1, graph_features
+                    
                     if labels is not None:
                         cur_new_labels.append(cur_labels[:graph_token_start])
                         cur_new_labels.append(torch.full((cur_graph_features.shape[0],), IGNORE_INDEX, device=labels.device, dtype=labels.dtype))
-                        # For checking anything beyond <image>
+                        
                         cur_labels = cur_labels[graph_token_start+1:]
                         
                 cur_graph_idx += 1
-                # skipping input ids before <image> ================
+                
                 if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
                     cur_input_ids = cur_input_ids[graph_token_start+2:]
                 else:
                     cur_input_ids = cur_input_ids[graph_token_start+1:]
                     
-                # ==================================================
-                # after replacement, there won't be any graph tokens
+                
+                
                 graph_token_indices = torch.where(cur_input_ids == self.config.image_token_index)[0]
                 
-            # Check if we have something left after <image>
+            
             if cur_input_ids.numel() > 0:
-                # embed them 
+                
                 if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
                     cur_new_input_embeds.append(self.language_model.model.embed_tokens(cur_input_ids).detach())
                 else:
@@ -512,42 +512,42 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                 if labels is not None:
                     cur_new_labels.append(cur_labels)
                     
-            # send them to device
+            
             cur_new_input_embeds = [x.to(device=self.device) for x in cur_new_input_embeds]
-            # concat to a complete embedded sentence
+            
             cur_new_input_embeds = torch.cat(cur_new_input_embeds, dim=0)
-            # append to new input embeds
+            
             new_input_embeds.append(cur_new_input_embeds)
-            # concat labels to a compelte sentence and append to new labels
+            
             if labels is not None:
                 cur_new_labels = torch.cat(cur_new_labels, dim=0)
                 new_labels.append(cur_new_labels)
                 
-        # handle varied length in this batch
+        
         if any(x.shape != new_input_embeds[0].shape for x in new_input_embeds):
-            # find maximum length
+            
             max_len = max(x.shape[0] for x in new_input_embeds)
             
-            # list to store length aligned embeds
+            
             new_input_embeds_align = []
-            # iterate batches
+            
             for cur_new_embed in new_input_embeds:
-                # Pad zeros to the sentence whose length is smaller than maxlen
+                
                 cur_new_embed = torch.cat(
                     (
                         cur_new_embed, 
                         torch.zeros(
-                            (max_len - cur_new_embed.shape[0], cur_new_embed.shape[1]), # shape of (maxlen - l, c)
+                            (max_len - cur_new_embed.shape[0], cur_new_embed.shape[1]), 
                             dtype=cur_new_embed.dtype, 
                             device=cur_new_embed.device)
                     ), 
                     dim=0)
                 new_input_embeds_align.append(cur_new_embed)
                 
-            # stack them to a complete batch
+            
             new_input_embeds = torch.stack(new_input_embeds_align, dim=0)
             
-            # Pad labels with IGNORE_INDEX
+            
             if labels is not None:
                 new_labels_align = []
                 _new_labels = new_labels
@@ -566,18 +566,18 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                     
                 new_labels = torch.stack(new_labels_align, dim=0)
                 
-            # recalibrate attention masks
+            
             if attention_mask is not None:
                 if new_labels is not None:
                     new_attention_mask = []
-                    _new_labels = new_labels  # _new_labels is new_labels, which means cur_new_labels is cur_new_labels_align
+                    _new_labels = new_labels  
                     for cur_attention_mask, cur_new_labels, cur_new_labels_align in zip(attention_mask, _new_labels, new_labels):
-                        new_attn_mask_pad_left = torch.full(  # usually this will extend HF attention mask for our new graph token
+                        new_attn_mask_pad_left = torch.full(  
                             (cur_new_labels.shape[0] - labels.shape[1],), 
                             True, 
                             dtype=attention_mask.dtype, 
                             device=attention_mask.device)
-                        new_attn_mask_pad_right = torch.full(  # under what circumstance this thing is greater than 0?
+                        new_attn_mask_pad_right = torch.full(  
                             (cur_new_labels_align.shape[0] - cur_new_labels.shape[0],), 
                             False, 
                             dtype=attention_mask.dtype, 
@@ -590,8 +590,8 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                     assert attention_mask.shape == new_labels.shape
                 else:
                     attention_mask = torch.cat(
-                        (  # usually this will extend HF attention mask for our new graph token
-                            torch.full(  # B x new_token
+                        (  
+                            torch.full(  
                                 (attention_mask.shape[0], new_input_embeds.shape[1] - input_ids.shape[1]), 
                                 True, 
                                 dtype=attention_mask.dtype, 
@@ -602,7 +602,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                         dim=1,
                     )
                     assert attention_mask.shape == new_input_embeds.shape[:2]
-        else:  # no varied length
+        else:  
             new_input_embeds = torch.stack(new_input_embeds, dim=0)
             if labels is not None:
                 new_labels  = torch.stack(new_labels, dim=0)
@@ -628,14 +628,14 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         moe_losses = []
         model_loss = None
         if labels is not None:
-            # Shift so that tokens < n predict n
+            
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
+            
             loss_fct = CrossEntropyLoss()
             shift_logits = shift_logits.view(-1, self.vocab_size)
             shift_labels = shift_labels.view(-1)
-            # Enable model parallelism
+            
             shift_labels = shift_labels.to(shift_logits.device)
             loss = loss_fct(shift_logits, shift_labels)
             
@@ -673,7 +673,7 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         return_class.proj_aux_coeff = self.config.projector_aux_loss_coeff
         return_class.model_loss = model_loss
         return_class.router_aux_coeff = self.config.moe_config.router_aux_loss_coef
-        return_class.labels = labels  # for spin training
+        return_class.labels = labels  
         
         return return_class
 
@@ -689,14 +689,14 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         loss = None
         model_loss = None
         if labels is not None and not is_spin_training:
-            # Shift so that tokens < n predict n
+            
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
+            
             loss_fct = CrossEntropyLoss()
             shift_logits = shift_logits.view(-1, self.vocab_size)
             shift_labels = shift_labels.view(-1)
-            # Enable model/pipeline parallelism
+            
             shift_labels = shift_labels.to(shift_logits.device)
             loss = loss_fct(shift_logits, shift_labels)
             
@@ -783,33 +783,33 @@ class GraphLlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
             else:
                 cache_length = past_length = past_key_values[0][0].shape[2]
 
-            # Keep only the unprocessed tokens:
-            # 1 - If the length of the attention_mask exceeds the length of input_ids, then we are in a setting where
-            # some of the inputs are exclusively passed as part of the cache (e.g. when passing input_embeds as
-            # input)
+            
+            
+            
+            
             if attention_mask is not None and attention_mask.shape[1] > input_ids.shape[1]:
                 input_ids = input_ids[:, -(attention_mask.shape[1] - past_length) :]
-            # 2 - If the past_length is smaller than input_ids', then input_ids holds all input tokens. We can discard
-            # input_ids based on the past_length.
+            
+            
             elif past_length < input_ids.shape[1]:
                 input_ids = input_ids[:, past_length:]
-            # 3 - Otherwise (past_length >= input_ids.shape[1]), let's assume input_ids only has unprocessed tokens.
+            
             elif self.config.image_token_index in input_ids:
                 input_ids = input_ids[:, input_ids.shape[1] - 1 :]
-            # If the cache has seen more tokens than it can hold, then the cache has a size limit. Let's discard the
-            # older attention values, as their corresponding values are not part of the input.
+            
+            
             if cache_length < past_length and attention_mask is not None:
                 attention_mask = attention_mask[:, -(cache_length + input_ids.shape[1]) :]
 
         position_ids = kwargs.get("position_ids", None)
         if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
+            
             position_ids = attention_mask.long().cumsum(-1) - 1
             position_ids.masked_fill_(attention_mask == 0, 1)
             if past_key_values:
                 position_ids = position_ids[:, -input_ids.shape[1] :]
                 
-        # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
+        
         if inputs_embeds is not None and past_key_values is None:
             model_inputs = {"inputs_embeds": inputs_embeds}
         else:

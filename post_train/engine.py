@@ -1,4 +1,4 @@
-# Adapted from https://github.com/huggingface/alignment-handbook 
+
 
 import inspect
 import warnings
@@ -170,7 +170,7 @@ class SPINTrainer(Trainer):
                 "PEFT is not installed and you passed a `peft_config` in the trainer's kwargs, please install it to use the PEFT models"
             )
         elif is_peft_available() and peft_config is not None:
-            # if model is a peft model and we have a peft_config, we merge and unload it first
+            
             if isinstance(model, PeftModel):
                 model = model.merge_and_unload()
 
@@ -188,7 +188,7 @@ class SPINTrainer(Trainer):
 
                 model = prepare_model_for_kbit_training(model, **preprare_model_kwargs)
             elif getattr(args, "gradient_checkpointing", False):
-                # For backward compatibility with older versions of transformers
+                
                 if hasattr(model, "enable_input_require_grads"):
                     model.enable_input_require_grads()
                 else:
@@ -198,15 +198,15 @@ class SPINTrainer(Trainer):
 
                     model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
-            # get peft model with the given config
+            
             model = get_peft_model(model, peft_config)
 
-        # For models that use gradient_checkpointing, we need to attach a hook that enables input
-        # to explicitly have `requires_grad=True`, otherwise training will either silently
-        # fail or completely fail.
+        
+        
+        
         elif getattr(args, "gradient_checkpointing", False):
             print("Enabling input reqruie grads...")
-            # For backward compatibility with older versions of transformers
+            
             if hasattr(model, "enable_input_require_grads"):
                 model.enable_input_require_grads()
             else:
@@ -236,67 +236,67 @@ class SPINTrainer(Trainer):
         if ref_model:
             self.ref_model = ref_model
         elif self.is_peft_model:
-            # The `model` with adapters turned off will be used as the reference model
+            
             self.ref_model = None
         else:
             self.ref_model = create_reference_model(model)
 
-        # if data_collator is None:
-        #     if tokenizer is None:
-        #         raise ValueError(
-        #             "max_length or a tokenizer must be specified when using the default SPINDataCollatorWithPadding"
-        #         )
-        #     if max_length is None:
-        #         warnings.warn(
-        #             "When using SPINDataCollatorWithPadding, you should set `max_length` in the SPINTrainer's init"
-        #             " it will be set to `512` by default, but you should do it yourself in the future.",
-        #             UserWarning,
-        #         )
-        #         max_length = 512
-        #     if max_prompt_length is None:
-        #         warnings.warn(
-        #             "When using SPINDataCollatorWithPadding, you should set `max_prompt_length` in the SPINTrainer's init"
-        #             " it will be set to `128` by default, but you should do it yourself in the future.",
-        #             UserWarning,
-        #         )
-        #         max_prompt_length = 128
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        #     if max_target_length is None and self.is_encoder_decoder:
-        #         warnings.warn(
-        #             "When using SPINDataCollatorWithPadding with an encoder decoder architecture, you should set `max_target_length` in the SPINTrainer's init"
-        #             " it will be set to `128` by default, but you should do it yourself in the future.",
-        #             UserWarning,
-        #         )
-        #         max_target_length = 128
+        
+        
+        
+        
+        
+        
+        
 
-        #     data_collator = DataCollatorWithPadding(
-        #         tokenizer,
-        #         max_length=max_length,
-        #         max_prompt_length=max_prompt_length,
-        #         label_pad_token_id=label_pad_token_id,
-        #         padding_value=padding_value,
-        #         truncation_mode=truncation_mode,
-        #         is_encoder_decoder=self.is_encoder_decoder,
-        #         max_target_length=max_target_length,
-        #     )
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        #     if args.remove_unused_columns:
-        #         args.remove_unused_columns = False
-        #         # warn users
-        #         warnings.warn(
-        #             "When using SPINDataCollatorWithPadding, you should set `remove_unused_columns=False` in your TrainingArguments"
-        #             " we have set it for you, but you should do it yourself in the future.",
-        #             UserWarning,
-        #         )
+        
+        
+        
+        
+        
+        
+        
+        
 
-        #     self.use_data_collator = True
-        # else:
-        #     self.use_data_collator = False
+        
+        
+        
         assert data_collator is not None, "Please provide a compatible data colator"
         self.use_data_collator = False
         if args.remove_unused_columns:
             args.remove_unused_columns = False
-            # warn users
+            
             warnings.warn(
                 "When using SPINDataCollatorWithPadding, you should set `remove_unused_columns=False` in your TrainingArguments"
                 " we have set it for you, but you should do it yourself in the future.",
@@ -353,7 +353,7 @@ class SPINTrainer(Trainer):
 
 
     def _prepare_deepspeed(self, model: PreTrainedModelWrapper):
-        # Adapted from accelerate: https://github.com/huggingface/accelerate/blob/739b135f8367becb67ffaada12fe76e3aa60fefd/src/accelerate/accelerator.py#L1473
+        
         deepspeed_plugin = self.accelerator.state.deepspeed_plugin
         config_kwargs = deepcopy(deepspeed_plugin.deepspeed_config)
 
@@ -365,8 +365,8 @@ class SPINTrainer(Trainer):
                     else getattr(model.config, "hidden_size", None)
                 )
                 if hidden_size is not None and config_kwargs["zero_optimization"]["stage"] == 3:
-                    # Note that `stage3_prefetch_bucket_size` can produce DeepSpeed messages like: `Invalidate trace cache @ step 0: expected module 1, but got module 0`
-                    # This is expected and is not an error, see: https://github.com/microsoft/DeepSpeed/discussions/4081
+                    
+                    
                     config_kwargs.update(
                         {
                             "zero_optimization.reduce_bucket_size": hidden_size * hidden_size,
@@ -375,8 +375,8 @@ class SPINTrainer(Trainer):
                         }
                     )
 
-        # If ZeRO-3 is used, we shard both the active and reference model.
-        # Otherwise, we assume the reference model fits in memory and is initialized on each device with ZeRO disabled (stage 0)
+        
+        
         if config_kwargs["zero_optimization"]["stage"] != 3:
             config_kwargs["zero_optimization"]["stage"] = 0
         model, *_ = deepspeed.initialize(model=model, config=config_kwargs)
@@ -399,7 +399,7 @@ class SPINTrainer(Trainer):
         else:
             max_length = max(batch["real_input_ids"].shape[1], batch["generated_input_ids"].shape[1])
         
-        # First real, then generated
+        
         for k in batch:
             if k.startswith("real") and isinstance(batch[k], torch.Tensor):
                 pad_value = self.label_pad_token_id if "labels" in k or self.is_encoder_decoder else self.padding_value
@@ -415,10 +415,10 @@ class SPINTrainer(Trainer):
                 concatenated_key = k.replace("generated", "concatenated")
                 concatenated_batch[concatenated_key] = torch.cat(
                     (
-                        concatenated_batch[concatenated_key],  # which is real input ids
-                        pad_to_length(batch[k], max_length, pad_value=pad_value),  # concat with generated input ids
+                        concatenated_batch[concatenated_key],  
+                        pad_to_length(batch[k], max_length, pad_value=pad_value),  
                     ),
-                    dim=0,  # at batch dim
+                    dim=0,  
                 ).to(self.accelerator.device)
 
         if self.is_encoder_decoder:
@@ -468,14 +468,14 @@ class SPINTrainer(Trainer):
         real_rewards = self.beta * (policy_real_logps - opponent_real_logps).detach()
         generated_rewards = self.beta * (policy_generated_logps - opponent_generated_logps).detach()
 
-        # print(f"losses: {losses}")
-        # print(f"policy_real_logps: {policy_real_logps}")
-        # print(f"policy_generated_logps: {policy_generated_logps}")
-        # print(f"opponent_real_logps: {opponent_real_logps}")
-        # print(f"opponent_generated_logps: {opponent_generated_logps}")
-        # print(f"logits: {logits}")
-        # print(f"real_rewards: {real_rewards}")
-        # print(f"generated_rewards: {generated_rewards}")
+        
+        
+        
+        
+        
+        
+        
+        
         
         return losses, real_rewards, generated_rewards
 
@@ -503,15 +503,15 @@ class SPINTrainer(Trainer):
             logits = logits[:, :-1, :]
         loss_mask = labels != self.label_pad_token_id
 
-        # dummy token; we'll ignore the losses on these tokens later
+        
         labels[labels == self.label_pad_token_id] = 0
         
-        # [[0, 0, 0.9, 0, 0], [0, 0.2, 0, 0], [0, 0, 0, 0.5]]
-        # [2, 1, 3]
-        # [0.9, 0.2, 0.5]
+        
+        
+        
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
 
-        if average_log_prob:  # config: False
+        if average_log_prob:  
             return (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
         else:
             return (per_token_logps * loss_mask).sum(-1)
@@ -519,11 +519,11 @@ class SPINTrainer(Trainer):
     def concatenated_forward(
         self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
-        # Here, with graph Batch, it cannot be simply concatenated, let's just use two forwards
-        # batch = {
-        #     "real": {"input_ids", "attention_mask", "graphs", "labels"},
-        #     "generated": {"input_ids", "attention_mask", "graphs", "labels"}
-        # }
+        
+        
+        
+        
+        
         real_batch = batch["real"]
         generated_batch = batch["generated"]
         len_real = real_batch["input_ids"].shape[0]
@@ -533,7 +533,7 @@ class SPINTrainer(Trainer):
         
         real_graph = real_batch["graphs"]
         generated_graph = generated_batch["graphs"]
-        # torch_geometric Batch
+        
         concatenated_graph = real_graph.to_data_list()
         concatenated_graph.extend(generated_graph.to_data_list())
         
@@ -550,9 +550,9 @@ class SPINTrainer(Trainer):
             output.labels,
             average_log_prob=False,
         )
-        # seperate the batch of real logps
+        
         real_logps = all_logps[:len_real]
-        # seperate the batch of generated logps
+        
         generated_logps = all_logps[len_real:]
 
         real_logits = all_logits[:len_real]
@@ -637,7 +637,7 @@ class SPINTrainer(Trainer):
             )
         loss, metrics = self.get_batch_metrics(model, inputs, train_eval="train")
 
-        # force log the metrics
+        
         if self.accelerator.is_main_process:
             self.store_metrics(metrics, train_eval="train")
 
@@ -703,14 +703,14 @@ class SPINTrainer(Trainer):
         with torch.no_grad():
             loss, metrics = self.get_batch_metrics(model, inputs, train_eval="eval")
 
-        # force log the metrics
+        
         if self.accelerator.is_main_process:
             self.store_metrics(metrics, train_eval="eval")
 
         if prediction_loss_only:
             return (loss.detach(), None, None)
 
-        # logits for the real and generated samples from model
+        
         logits_dict = {
             "eval_logits/real": metrics["eval_logits/real"],
             "eval_logits/generated": metrics["eval_logits/generated"],
@@ -740,35 +740,35 @@ class SPINTrainer(Trainer):
         Works both with or without labels.
         """
 
-        # # Sample and save to game log if requested (for one batch to save time)
-        # if self.generate_during_eval:
-        #     # Generate random indices within the range of the total number of samples
-        #     num_samples = len(dataloader.dataset)
-        #     random_indices = random.sample(range(num_samples), k=self.args.eval_batch_size)
+        
+        
+        
+        
+        
 
-        #     # Use dataloader.dataset.select to get the random batch without iterating over the DataLoader
-        #     random_batch_dataset = dataloader.dataset.select(random_indices)
-        #     random_batch = self.data_collator(random_batch_dataset)
-        #     random_batch = self._prepare_inputs(random_batch)
+        
+        
+        
+        
 
-        #     policy_output_decoded, ref_output_decoded = self.get_batch_samples(self.model, random_batch)
+        
 
-        #     self.log(
-        #         {
-        #             "game_log": wandb.Table(
-        #                 columns=["Prompt", "Policy", "Ref Model"],
-        #                 rows=[
-        #                     [prompt, pol[len(prompt) :], ref[len(prompt) :]]
-        #                     for prompt, pol, ref in zip(
-        #                         random_batch["prompt"], policy_output_decoded, ref_output_decoded
-        #                     )
-        #                 ],
-        #             )
-        #         }
-        #     )
-        #     self.state.log_history.pop()
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        # Base evaluation
+        
         initial_output = super().evaluation_loop(
             dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
         )
@@ -783,9 +783,9 @@ class SPINTrainer(Trainer):
             logs (`Dict[str, float]`):
                 The values to log.
         """
-        # logs either has 'loss' or 'eval_loss'
+        
         train_eval = "train" if "loss" in logs else "eval"
-        # Add averaged stored metrics to logs
+        
         for key, metrics in self._stored_metrics[train_eval].items():
             logs[key] = torch.tensor(metrics).mean().item()
         del self._stored_metrics[train_eval]

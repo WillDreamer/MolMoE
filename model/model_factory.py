@@ -22,16 +22,16 @@ def find_all_linear_names(model: nn.Module) -> list:
     Returns:
         list: list of linear modules
     """
-    cls = torch.nn.Linear  # we are going to find all nn.Linear
+    cls = torch.nn.Linear  
     lora_module_names = set()
-    for name, module in model.named_modules():  # iterate all modules
-        if isinstance(module, cls):  # If it's nn.Linear
-            names = name.split('.')  # split the name, name rule: xx.xx
+    for name, module in model.named_modules():  
+        if isinstance(module, cls):  
+            names = name.split('.')  
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
 
 
-    if 'lm_head' in lora_module_names: # needed for 16-bit
-        lora_module_names.remove('lm_head')  # exclude lm_head
+    if 'lm_head' in lora_module_names: 
+        lora_module_names.remove('lm_head')  
     return list(lora_module_names)
 
 def find_linear_without_moe(model: nn.Module) -> list:
@@ -51,26 +51,26 @@ def find_linear_without_moe(model: nn.Module) -> list:
             
     return lora_module_names
 
-# def find_linear_without_moe(model: nn.Module) -> list:
-#     """Find all linear modules except for graph_tower, mm_projector and lm_head
 
-#     Args:
-#         model (nn.Module): Model
 
-#     Returns:
-#         list: list of found modules
-#     """
-#     cls = torch.nn.Linear
-#     lora_module_names = list()
-#     for name, module in model.named_modules():
-#         if ("graph_tower" not in name) and ("mm_projector" not in name) and ("lm_head" not in name) and isinstance(module, cls) and ("deepspeed_moe" not in name):
-#             lora_module_names.append(name)
+
+
+
+
+
+
+
+
+
+
+
+
             
-#     return lora_module_names
+
 
 
 def create_selfies_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
-    # 1. Init all configs
+    
     graph_config = GraphConfig(
         model_name=model_args.graph_tower,
         encoder_num_layer=model_args.gin_num_layers,
@@ -79,7 +79,7 @@ def create_selfies_model(model_args: ModelArguments, training_args: TrainingArgu
         encoder_drop_ratio=model_args.drop_ratio,
         encoder_gnn_type='gin'
     )
-    # default override to torch.bfloat16 for flash attention
+    
     text_config = AutoConfig.from_pretrained(
         model_args.base_model,
         attn_implementation="flash_attention_2",
@@ -105,25 +105,25 @@ def create_selfies_model(model_args: ModelArguments, training_args: TrainingArgu
         )
     config.use_cache = False
     text_config.use_cache = False
-    # 2. Instantiate tokenizer, model
+    
     tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
     
     text_config.moe_enable = config.moe_enable = False
     with no_init_weights():
         model = GraphLlavaForConditionalGeneration(config)
         
-    # 3. Load pre-trained LLM, projector and GNN
+    
     model.load_language_model()
     model.rand_init_projector()
     model.load_graph(model_args.graph_init_checkpoint)
     
-    # 4. Apply LoRA
-    # import lora related functions
+    
+    
     from peft import LoraConfig, get_peft_model
-    lora_config = LoraConfig(  # initailize a LoRA Config
+    lora_config = LoraConfig(  
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
-        target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
+        target_modules=find_linear_without_moe(model),  
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
         task_type="CAUSAL_LM",
@@ -133,11 +133,11 @@ def create_selfies_model(model_args: ModelArguments, training_args: TrainingArgu
         model.to("cuda")
         
     print("Adding LoRA adapters...")
-    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    model = get_peft_model(model, lora_config)  
     training_args.lora_enable = True
     model.to("cpu")
     
-    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    
     model.mm_projector.requires_grad_(True)
     
     return tokenizer, model
@@ -157,7 +157,7 @@ def create_stage1_model(model_args: ModelArguments, training_args: TrainingArgum
     Returns:
         tuple[PreTrainedTokenizer, PreTrainedModel]: tokenizer for the specific model and the model itself
     """
-    # 1. Init all configs
+    
     graph_config = GraphConfig(
         model_name=model_args.graph_tower,
         encoder_num_layer=model_args.gin_num_layers,
@@ -192,7 +192,7 @@ def create_stage1_model(model_args: ModelArguments, training_args: TrainingArgum
         )
     config.use_cache = False
     text_config.use_cache = False
-    # 2. Instantiate tokenizer, model
+    
     tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
 
     text_config.moe_enable = config.moe_enable = False
@@ -200,12 +200,12 @@ def create_stage1_model(model_args: ModelArguments, training_args: TrainingArgum
     with no_init_weights():
         model = GraphLlavaForConditionalGeneration(config)
         
-    # 3. Load pre-trained LLM, random init projector and load graph ckpt
+    
     model.load_language_model()
     model.rand_init_projector()
     model.load_graph(model_args.graph_init_checkpoint)
     
-    # 4. Set parameters that will be trained
+    
     model.requires_grad_(False)
     model.mm_projector.requires_grad_(True)
     
@@ -227,7 +227,7 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
     Returns:
         tuple[PreTrainedTokenizer, PreTrainedModel]: tokenizer for the specific model and the model itself
     """
-    # 1. Init all configs
+    
     graph_config = GraphConfig(
         model_name=model_args.graph_tower,
         encoder_num_layer=model_args.gin_num_layers,
@@ -236,7 +236,7 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         encoder_drop_ratio=model_args.drop_ratio,
         encoder_gnn_type='gin'
     )
-    # default override to torch.bfloat16 for flash attention
+    
     text_config = AutoConfig.from_pretrained(
         model_args.base_model,
         attn_implementation="flash_attention_2",
@@ -248,9 +248,9 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
         level=model_args.level,
-        # use_head_weight=model_args.use_head_weight,
-        # num_query=model_args.num_query,
-        # num_heads=model_args.num_heads
+        
+        
+        
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -262,26 +262,26 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         )
     config.use_cache = False
     text_config.use_cache = False
-    # 2. Instantiate tokenizer, model
+    
     tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
     
     text_config.moe_enable = config.moe_enable = False
     with no_init_weights():
         model = GraphLlavaForConditionalGeneration(config)
         
-    # 3. Load pre-trained LLM, projector and GNN
+    
     model.load_language_model()
     model.load_projector(model_args.pretrain_mm_mlp_adapter)
     model.load_graph(model_args.graph_init_checkpoint)
     
-    # 4. Apply LoRA
-    # import lora related functions
+    
+    
     from peft import LoraConfig, get_peft_model
-    lora_config = LoraConfig(  # initailize a LoRA Config
+    lora_config = LoraConfig(  
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
         use_rslora=True,
-        target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
+        target_modules=find_linear_without_moe(model),  
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
         task_type="CAUSAL_LM",
@@ -291,11 +291,11 @@ def create_stage2_model(model_args: ModelArguments, training_args: TrainingArgum
         model.to("cuda")
         
     print("Adding LoRA adapters...")
-    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    model = get_peft_model(model, lora_config)  
     training_args.lora_enable = True
     model.to("cpu")
     
-    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    
     model.mm_projector.requires_grad_(True)
     
     return tokenizer, model
@@ -310,10 +310,10 @@ def create_lora2lora_model(model_args: ModelArguments, training_args: TrainingAr
     )
     
     from peft import LoraConfig, get_peft_model
-    lora_config = LoraConfig(  # initailize a LoRA Config
+    lora_config = LoraConfig(  
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
-        target_modules=find_linear_without_moe(model),  # add lora to all modules that is nn.Linear
+        target_modules=find_linear_without_moe(model),  
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
         task_type="CAUSAL_LM",
@@ -323,11 +323,11 @@ def create_lora2lora_model(model_args: ModelArguments, training_args: TrainingAr
         model.to("cuda")
         
     print("Adding LoRA adapters...")
-    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    model = get_peft_model(model, lora_config)  
     training_args.lora_enable = True
     model.to("cpu")
     
-    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    
     model.mm_projector.requires_grad_(True)
     
     return tokenizer, model
@@ -387,7 +387,7 @@ def create_stage3_model(model_args: ModelArguments, training_args: TrainingArgum
     for name, param in model.named_parameters():
         if "mm_projector" not in name and "deepspeed_moe" in name:
             param.requires_grad = True
-    # model.mm_projector.requires_grad_(True)
+    
     
     print("Adding additional input gradients")
     model.language_model.enable_input_require_grads()
@@ -396,7 +396,7 @@ def create_stage3_model(model_args: ModelArguments, training_args: TrainingArgum
     
     
 def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArguments) -> tuple[PreTrainedTokenizer, PreTrainedModel]:
-    # 1. Init all configs
+    
     graph_config = GraphConfig(
         model_name=model_args.graph_tower,
         encoder_num_layer=model_args.gin_num_layers,
@@ -405,7 +405,7 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
         encoder_drop_ratio=model_args.drop_ratio,
         encoder_gnn_type='gin'
     )
-    # default override to torch.bfloat16 for flash attention
+    
     text_config = AutoConfig.from_pretrained(
         model_args.base_model,
         attn_implementation="flash_attention_2",
@@ -417,9 +417,9 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
         head_type=model_args.head_type,
         use_mlp=model_args.use_mlp,
         level=model_args.level,
-        # use_head_weight=model_args.use_head_weight,
-        # num_query=model_args.num_query,
-        # num_heads=model_args.num_heads
+        
+        
+        
     )
     config = GraphLlavaConfig(
         graph_config, 
@@ -431,18 +431,18 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
         )
     config.use_cache = False
     text_config.use_cache = False
-    # 2. Instantiate tokenizer, model
+    
     tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
     
     with no_init_weights():
         model = GraphLlavaForConditionalGeneration(config)
         
-    # 3. Load pre-trained LLM, projector and GNN
+    
     model.load_language_model()
     model.load_projector(model_args.pretrain_mm_mlp_adapter)
     model.load_graph(model_args.graph_init_checkpoint)
     
-    # 4. create moe model
+    
     moe_config = MoEConfig(
         moe_mode = model_args.moe_mode,
         moe_layers_idx=model_args.moe_layers_idx,
@@ -471,13 +471,13 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
     model.to("cpu")
     torch.cuda.empty_cache()
     
-    # 5. Apply LoRA
-    # import lora related functions
+    
+    
     from peft import LoraConfig, get_peft_model
-    lora_config = LoraConfig(  # initailize a LoRA Config
+    lora_config = LoraConfig(  
         r=training_args.lora_r,
         lora_alpha=training_args.lora_alpha,
-        target_modules=find_linear_without_moe(model),  # do not add lora to any MoE layers, but any layer except that
+        target_modules=find_linear_without_moe(model),  
         lora_dropout=training_args.lora_dropout,
         bias=training_args.lora_bias,
         task_type="CAUSAL_LM",
@@ -487,17 +487,17 @@ def create_moe_lora_model(model_args: ModelArguments, training_args: TrainingArg
         model.to("cuda")
         
     print("Adding LoRA adapters...")
-    model = get_peft_model(model, lora_config)  # add lora according to lora_config
+    model = get_peft_model(model, lora_config)  
     training_args.lora_enable = True
     model.to("cpu")
     
-    # 5. set parameters, since LoRA freeze all parameters, we activate projector here
+    
     model.mm_projector.requires_grad_(True)
-    # 6. set all moe layers active
+    
     for name, module in model.named_modules():
         if isinstance(module, MoE):
             module.requires_grad_(True)
-            # nn.init.constant_(module.deepspeed_moe.gate.wg.weight, val=0.01)
+            
             nn.init.kaiming_normal_(module.deepspeed_moe.gate.wg.weight, a=4.2, mode="fan_out")
     
     return tokenizer, model
@@ -545,20 +545,20 @@ def load_lora_model(
 ) -> tuple[PreTrainedTokenizer, GraphLlavaForConditionalGeneration]:
     """Load a LoRA fine-tuned model from stage 2
 
-    ## Args:
+    
         model_path (str): path to the lora fine-tuned folder(the one contains adapter_model.safetensors)
         language_backbone (str): path to the language backbone(e.g., phi-3 mini, llama-3.2)
         graph_path (str): path to graph checkpoint(e.g. himol_encoder.pth)
         use_flash_attn (bool): Whether to use flash attention
 
-    ## Raises:
+    
         NotImplementedError: If no non_lora_trainables.bin exists in the model_path, something happend to the saving
         or the parameter activation in the training, please check!
 
-    ## Returns:
+    
         tuple[PreTrainedTokenizer, GraphLlavaForConditionalGeneration]: tokenizer for the specific model and the model itself
     """
-    # 1. Get config from the model_path folder
+    
     config = GraphLlavaConfig.from_pretrained(model_path)
     if use_flash_attn:
         config._attn_implementation = "flash_attention_2"
@@ -567,13 +567,13 @@ def load_lora_model(
         model = GraphLlavaForConditionalGeneration(config)
         
     tokenizer = AutoTokenizer.from_pretrained(language_backbone)
-    # 2. Load language model, graph ckpt
+    
     model.load_language_model()
     model.load_graph(graph_path)
     
-    # 3. Load mm_projector
+    
     print('Loading additional LLaVA weights...')
-    # Read and process non-lora-trainables, specifically, mm projector
+    
     if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
         non_lora_trainables = torch.load(
             os.path.join(model_path, 'non_lora_trainables.bin'), map_location='cpu')
@@ -586,7 +586,7 @@ def load_lora_model(
         
     model.mm_projector.load_state_dict(non_lora_trainables)
     
-    # 4. Load LoRA weights and merge LoRA
+    
     from peft import PeftModel
     print('Loading LoRA weights...')
     model = PeftModel.from_pretrained(model, model_path)
@@ -599,14 +599,14 @@ def load_lora_model(
     print('Model is loaded...')
     torch.cuda.empty_cache()
     
-    # 5. If MoE projector is used, we intialize our model with deepspeed engine
+    
     if isinstance(model.mm_projector, Type1MoEProjector) or isinstance(model.mm_projector, Type2MoEProjector):
         import deepspeed
         deepspeed.init_distributed(dist_backend='nccl')
-        # Initialize the DeepSpeed-Inference engine
+        
         ds_engine = deepspeed.init_inference(model,
-                                                # mp_size=2,
-                                                # dtype=torch.half,
+                                                
+                                                
                                                 checkpoint=None,
                                                 replace_with_kernel_inject=False)
         model = ds_engine.module
@@ -624,7 +624,7 @@ def load_lora2lora_model(
     tokenizer, model = load_lora_model(base_lora_path, language_backbone, graph_path, use_flash_attn)
     
     print('Loading additional LLaVA weights...')
-    # Read and process non-lora-trainables, specifically, mm projector
+    
     if os.path.exists(os.path.join(this_lora_path, 'non_lora_trainables.bin')):
         non_lora_trainables = torch.load(
             os.path.join(this_lora_path, 'non_lora_trainables.bin'), map_location='cpu')
@@ -638,7 +638,7 @@ def load_lora2lora_model(
     
     from peft import PeftModel
     print('Loading LoRA weights...')
-    # Load the second lora adapter
+    
     model = PeftModel.from_pretrained(model, this_lora_path)
     print("Moving to CUDA")
     model.to(torch.device("cuda"))
@@ -666,10 +666,10 @@ def load_full_model(
     tokenizer = AutoTokenizer.from_pretrained(language_backbone)
     import deepspeed
     deepspeed.init_distributed(dist_backend='nccl')
-    # Initialize the DeepSpeed-Inference engine
+    
     ds_engine = deepspeed.init_inference(model,
-                            # mp_size=2,
-                            # dtype=torch.half,
+                            
+                            
                             checkpoint=None,
                             replace_with_kernel_inject=False)
     model = ds_engine.module
@@ -681,7 +681,7 @@ def load_moe_lora_model(
     graph_path: str,
     use_flash_attn: bool
 ):
-    # 1. Build base language model
+    
     config = GraphLlavaConfig.from_pretrained(model_path)
     if use_flash_attn:
         config._attn_implementation = "flash_attention_2"
@@ -693,10 +693,10 @@ def load_moe_lora_model(
     model.load_language_model()
     model.load_graph(graph_path)
     
-    # 2. Expand to MoE
+    
     model.replace_mlp_with_moe()
     
-    # 3. Load MoE and projctor weights
+    
     print('Loading additional LLaVA weights...')
     if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
         non_lora_trainables = torch.load(
@@ -709,7 +709,7 @@ def load_moe_lora_model(
     
     model.load_state_dict(non_lora_state_dict, strict=False)
     
-    # 4. load and merge lora
+    
     from peft import PeftModel
     print('Loading LoRA weights...')
     model = PeftModel.from_pretrained(model, model_path)
@@ -722,13 +722,13 @@ def load_moe_lora_model(
     print('Model is loaded...')
     torch.cuda.empty_cache()
     
-    # 5. deepspeed engine
+    
     import deepspeed
     deepspeed.init_distributed(dist_backend='nccl')
-    # Initialize the DeepSpeed-Inference engine
+    
     ds_engine = deepspeed.init_inference(model,
-                                            # mp_size=2,
-                                            # dtype=torch.half,
+                                            
+                                            
                                             checkpoint=None,
                                             replace_with_kernel_inject=False)
     model = ds_engine.module
@@ -751,10 +751,10 @@ def create_model(
     data_args: DataArguments, 
     training_args: TrainingArguments
     ) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
-    # 1. Create tokenizer, model
+    
     tokenizer, model = MODEL_STAGE_MAP[training_args.training_recipe](model_args, training_args)
     
-    # 2. Set correct conversation template
+    
     conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
     if tokenizer.pad_token is None and model_args.version == "llama3":
         tokenizer.pad_token = "<|finetune_right_pad_id|>"
@@ -763,7 +763,7 @@ def create_model(
     print("Using conversation template of", model_args.version)
     print("Conversation template:", conversation_lib.default_conversation)
     
-    # 3. Align arguments
+    
     data_args.graph_tower = model_args.graph_tower
     training_args.moe_enable = model_args.moe_enable
     training_args.projector_aux_coeff = model_args.projector_aux_loss_coeff

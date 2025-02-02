@@ -70,15 +70,15 @@ class SimpleResBlock(nn.Module):
     
 
 def masked_pooling(features: NestedTensor, pooling_method: str="mean"):
-    tensors = features.tensors.flatten(1, 2) # B, tokens, d
-    masks = features.mask.flatten(1, 2) # B, tokens
+    tensors = features.tensors.flatten(1, 2) 
+    masks = features.mask.flatten(1, 2) 
     
     not_masks = ~masks
     
     pooler = GETPOOLER[pooling_method]
     effective_features = []
     for feature, mask in zip(tensors, not_masks):
-        # Global Average Pooling
+        
         effective_features.append(pooler(feature[mask], dim=0))
         
     effective_features = torch.stack(effective_features, dim=0)
@@ -86,19 +86,19 @@ def masked_pooling(features: NestedTensor, pooling_method: str="mean"):
     return effective_features
 
 def parallel_mean_pooling(features: NestedTensor, pooling_method: str = "mean"):
-    tensors = features.tensors.flatten(1, 2)  # B, tokens, d
-    masks = features.mask.flatten(1, 2)       # B, tokens
+    tensors = features.tensors.flatten(1, 2)  
+    masks = features.mask.flatten(1, 2)       
     
     not_masks = ~masks
     
-    # Sum and count the non-masked elements
-    sum_features = tensors.sum(dim=1)  # B, d
-    count_nonmasked = not_masks.sum(dim=1, keepdim=True)  # B, 1
     
-    # Avoid division by zero
+    sum_features = tensors.sum(dim=1)  
+    count_nonmasked = not_masks.sum(dim=1, keepdim=True)  
+    
+    
     count_nonmasked = count_nonmasked.clamp(min=1)
     
-    # Perform mean pooling
+    
     if pooling_method == "mean":
         effective_features = sum_features / count_nonmasked
     
@@ -108,8 +108,8 @@ def parallel_mean_pooling(features: NestedTensor, pooling_method: str = "mean"):
 def level_pooling(features: NestedTensor, pooling_method: str="mean"):
     tensors, masks = features.decompose()
     pooler = GETPOOLER[pooling_method]
-    # tensors: B, level, tokens, d
-    # masks: B, level, tokens
+    
+    
     
     not_mask = ~masks
     effective_features = []
@@ -144,7 +144,7 @@ class type1_moe(nn.Module):
         )
         
     def forward(self, features: torch.Tensor):
-        # features: B, level, N, d
+        
         B, L, N, D = features.shape
         features = features.permute(0, 2, 1, 3).reshape(B*N, L, D)
         features = self.moe_layer(features)
@@ -191,7 +191,7 @@ class type2_moe(nn.Module):
         )
         
     def forward(self, features: torch.Tensor):
-        # features: B, level, N, d
+        
         graph, motif, node = features.permute(1, 0, 2, 3).unbind(0)
         graph = self.graph_moe(graph)
         motif = self.motif_moe(motif)
@@ -234,9 +234,9 @@ class single_level_linear(nn.Module):
         
     def forward(self, x: NestedTensor):
         feature, mask = x.decompose()
-        # graph level in 2'nd dimension
+        
         feature, mask = feature[:, self.feature_index], mask[:, self.feature_index]
-        # feature: B, N, d, mask: B, N
+        
         not_mask = ~mask
         effective_features = []
         for feat, m in zip(feature, not_mask):
@@ -275,13 +275,13 @@ def build_xmodal_projector(
     """
     projector_type = getattr(config, 'mm_projector_type', 'linear')
 
-    if projector_type == 'linear':  # Single linear
-        # return nn.Linear(config.mm_hidden_size, config.hidden_size)
+    if projector_type == 'linear':  
+        
         return single_level_linear(config.mm_hidden_size, config.hidden_size)
     
 
     mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', projector_type)
-    if mlp_gelu_match:  # MLP projector
+    if mlp_gelu_match:  
         mlp_depth = int(mlp_gelu_match.group(1))
         modules = [nn.Linear(config.mm_hidden_size, config.hidden_size)]
         for _ in range(1, mlp_depth):

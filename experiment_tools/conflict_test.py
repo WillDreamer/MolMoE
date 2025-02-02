@@ -1,4 +1,4 @@
-# @ MolMoE projects 2024
+
 
 import os
 import sys
@@ -24,8 +24,8 @@ from torch.utils.data import ConcatDataset, random_split
 @dataclass
 class ExperimentArgs:
     task: str = field(default="reagent_pred/molcap/solvent_pred")
-    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap")
-    # task: str = field(default="forward_pred/retrosynthesis/reagent_pred/property_pred/molcap/catalyst_pred/solvent_pred/yields_regression/compound_list_selection/exp_procedure_pred/scf_pred/logp_pred/description_qa/weight_pred/tpsa_pred/complexity_pred")
+    
+    
 def parse_args() -> tuple[ModelArguments, DataArguments, TrainingArguments, ExperimentArgs]:
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, ExperimentArgs))
     model_args, data_args, training_args, exp_args = parser.parse_args_into_dataclasses()
@@ -67,17 +67,17 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
             data, _ = random_split(data, [train_size, len(data) - train_size])
         if data_args.over_sampling:
             from torch.utils.data import WeightedRandomSampler
-            target_size = int(len(data) * 1.)  # 目标大小是原始数据集的x倍
+            target_size = int(len(data) * 1.)  
             sampler = WeightedRandomSampler(
-                weights=[1] * len(data),  # 均匀采样权重
+                weights=[1] * len(data),  
                 num_samples=target_size,
-                replacement=True  # 允许重复采样
+                replacement=True  
             )
             datasets.append(torch.utils.data.Subset(data, list(sampler)))
         else:
             datasets.append(data)
     
-    # (Hao Li): Allow average sampling for each dataset
+    
     if data_args.split_eval:
         train_sets = []
         val_sets = []
@@ -102,12 +102,12 @@ def build_dataset(tokenizer, data_args: DataArguments, exp_args: ExperimentArgs)
 
 
 def main(model_args: ModelArguments, data_args: DataArguments, training_args: TrainingArguments, exp_args: ExperimentArgs):
-    # override built-in print to print only on master rank
+    
     training_args.tasks = exp_args.task
     initialize_distributed_training(training_args.local_rank)
-    # seed everything
+    
     transformers.set_seed(0)
-    # Dump args
+    
     args = {
         "Model Args": asdict(model_args), 
         "Data Args": asdict(data_args), 
@@ -120,21 +120,21 @@ def main(model_args: ModelArguments, data_args: DataArguments, training_args: Tr
         json.dump(args, f, indent=4)
         f.close()
     
-    # Create model, tokenizer
+    
     tokenizer, model = model_factory.create_model(model_args, data_args, training_args)
-    # create dataset
+    
     data_module = build_dataset(tokenizer=tokenizer, data_args=data_args, exp_args=exp_args)
     
     model_profiler(model, training_args.output_dir)
     
-    # save callback
+    
     from transformers import TrainerCallback
-    # callback function for model saving
+    
     class SaveCallback(TrainerCallback):
         def on_save(self, args, state, control, **kwargs):
-            # get saving dir from args
+            
             checkpoint_dir = os.path.join(args.output_dir, 'checkpoint-{}'.format(state.global_step))
-            # checkpoint_dir = args.output_dir
+            
             seperate_save_lora(args, checkpoint_dir, model)
             
     class TruncateCallback(TrainerCallback):
@@ -143,7 +143,7 @@ def main(model_args: ModelArguments, data_args: DataArguments, training_args: Tr
                 if state.epoch > args.stop_epoch:
                     exit(0)
     
-    # train
+    
     trainer = train_engine.MoETrainer(
         model=model,
         args=training_args,
@@ -151,13 +151,13 @@ def main(model_args: ModelArguments, data_args: DataArguments, training_args: Tr
         **data_module
     )
     
-    # If we have saved ckpts, we resume from it and continue training
+    
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
-    else:  # No savings, train from scratch
+    else:  
         trainer.train()
     
-    # Save state dict that is related to training
+    
     trainer.save_state()
     logs = trainer.state.log_history
         

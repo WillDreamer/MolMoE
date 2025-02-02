@@ -36,9 +36,9 @@ def atom_chiral(atom):
 def atom_to_feature(atom):
     num = atom.GetAtomicNum() - 1
     if num == -1:
-        # atom.GetAtomicNum() is 0, which is the generic wildcard atom *, may be used to symbolize an unknown atom of any element.
-        # See https://biocyc.org/help.html?object=smiles
-        num = 118  # normal num is [0, 117], so we use 118 to denote wildcard atom *
+        
+        
+        num = 118  
     return [num, atom_chiral(atom)]
 
 
@@ -53,18 +53,18 @@ def smiles2graph(smiles_string)->Dict:
     :return: graph object
     """
 
-    # 大改
+    
     mol = Chem.MolFromSmiles(smiles_string)
 
-    # atoms
+    
     atom_features_list = []
     for atom in mol.GetAtoms():
         atom_features_list.append(atom_to_feature(atom))
     x = np.array(atom_features_list, dtype = np.int64)
 
-    # bonds
+    
     num_bond_features = 2
-    if len(mol.GetBonds()) > 0: # mol has bonds
+    if len(mol.GetBonds()) > 0: 
         edges_list = []
         edge_features_list = []
         for bond in mol.GetBonds():
@@ -73,19 +73,19 @@ def smiles2graph(smiles_string)->Dict:
 
             edge_feature = bond_to_feature(bond)
 
-            # add edges in both directions
+            
             edges_list.append((i, j))
             edge_features_list.append(edge_feature)
             edges_list.append((j, i))
             edge_features_list.append(edge_feature)
 
-        # data.edge_index: Graph connectivity in COO format with shape [2, num_edges]
+        
         edge_index = np.array(edges_list, dtype = np.int64).T
 
-        # data.edge_attr: Edge feature matrix with shape [num_edges, num_edge_features]
+        
         edge_attr = np.array(edge_features_list, dtype = np.int64)
 
-    else:   # mol has no bonds
+    else:   
         edge_index = np.empty((2, 0), dtype = np.int64)
         edge_attr = np.empty((0, num_bond_features), dtype = np.int64)
 
@@ -204,7 +204,7 @@ def copy_atom(atom):
 
 
 def copy_edit_mol(mol):
-    new_mol = Chem.RWMol(Chem.MolFromSmiles(''))  # 创建一个可操作的空分子
+    new_mol = Chem.RWMol(Chem.MolFromSmiles(''))  
     for atom in mol.GetAtoms():
         new_atom = copy_atom(atom)
         new_mol.AddAtom(new_atom)
@@ -218,23 +218,23 @@ def copy_edit_mol(mol):
 
 def get_clique_mol(mol, atoms):
     try:
-        # 确保分子的结构已经Kekulized，使得所有原子和键的类型都明确。
+        
         Chem.Kekulize(mol, clearAromaticFlags=True)
-        # 从分子中获取特定原子集的SMILES表示。
+        
         smiles = Chem.MolFragmentToSmiles(mol, atoms, kekuleSmiles=True)
-        # 从SMILES字符串创建分子对象，此处关闭自动校正，因为我们希望先手动处理。
+        
         new_mol = Chem.MolFromSmiles(smiles, sanitize=False)
-        # 创建一个可编辑的分子副本。
+        
         new_mol = copy_edit_mol(new_mol).GetMol()
-        # 尝试校正分子结构，如果失败则返回None。
+        
         new_mol = sanitize(new_mol)
         if new_mol is None:
             raise Exception("Sanitization failed.")
 
-        # 返回处理后的分子。
+        
         return new_mol
     except Exception as e:
-        # 在任何错误的情况下返回空的2D分子。
+        
         return Chem.MolFromSmiles('')
 
 
@@ -245,13 +245,13 @@ def motif_decomp(mol):
 
     cliques = []
     breaks = []
-    # 获取所有分子间的连接关系
+    
     for bond in mol.GetBonds():
         a1 = bond.GetBeginAtom().GetIdx()
         a2 = bond.GetEndAtom().GetIdx()
-        cliques.append([a1, a2])  # 获取
+        cliques.append([a1, a2])  
 
-    # 即: 断掉BRICS算法中获取的键
+    
     res = list(BRICS.FindBRICSBonds(mol))
     if len(res) != 0:
         for bond in res:
@@ -262,7 +262,7 @@ def motif_decomp(mol):
             cliques.append([bond[0][0]])
             cliques.append([bond[0][1]])
 
-    # merge cliques
+    
     for c in range(len(cliques) - 1):
         if c >= len(cliques):
             break
@@ -275,12 +275,12 @@ def motif_decomp(mol):
         cliques = [c for c in cliques if len(c) > 0]
     cliques = [c for c in cliques if n_atoms > len(c) > 0]
 
-    # 一个cliques对应一个mol
+    
     num_cli = len(cliques)
     ssr_mol = Chem.GetSymmSSSR(mol)
     for i in range(num_cli):
         c = cliques[i]
-        cmol = get_clique_mol(mol, c)  # 若为空, 则进入到下一个循环
+        cmol = get_clique_mol(mol, c)  
         ssr = Chem.GetSymmSSSR(cmol)
         if len(ssr) > 1:
             for ring in ssr_mol:
@@ -294,14 +294,14 @@ def motif_decomp(mol):
 
 
 allowable_features = {
-    'possible_atomic_num_list': list(range(1, 119)),  # 元素周期表序号
+    'possible_atomic_num_list': list(range(1, 119)),  
     'possible_formal_charge_list': [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5],
     'possible_chirality_list': [
         Chem.rdchem.ChiralType.CHI_UNSPECIFIED,
         Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW,
         Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW,
         Chem.rdchem.ChiralType.CHI_OTHER
-    ],  # 原子的手性
+    ],  
     'possible_hybridization_list': [
         Chem.rdchem.HybridizationType.S,
         Chem.rdchem.HybridizationType.SP, Chem.rdchem.HybridizationType.SP2,
@@ -317,7 +317,7 @@ allowable_features = {
         Chem.rdchem.BondType.TRIPLE,
         Chem.rdchem.BondType.AROMATIC,
     ],
-    'possible_bond_dirs': [  # only for double bond stereo information
+    'possible_bond_dirs': [  
         Chem.rdchem.BondDir.NONE,
         Chem.rdchem.BondDir.ENDUPRIGHT,
         Chem.rdchem.BondDir.ENDDOWNRIGHT
@@ -330,31 +330,31 @@ def get_mol(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
-    # Chem.Kekulize(mol)
+    
     return mol
 
 
-# mol.x, mol.edge_index, mol.edge_attr, mol.num_part
+
 class MolGraph(object):
 
     def __init__(self, smiles):
         self.smiles = smiles
-        self.mol = get_mol(smiles)  # 获取2D分子
+        self.mol = get_mol(smiles)  
 
         '''
-        #Stereo Generation
+        
         mol = Chem.MolFromSmiles(smiles)
         self.smiles3D = Chem.MolToSmiles(mol, isomericSmiles=True)
         self.smiles2D = Chem.MolToSmiles(mol)
         self.stereo_cands = decode_stereo(self.smiles2D)
         '''
 
-        # 有的会导致atom.GetAtomicNum()为0
+        
         atom_features_list = []
 
-        # 出现的问题: index中的值有时为0
+        
         for atom in self.mol.GetAtoms():
-            # get atom features
+            
             atom_feature = [allowable_features['possible_atomic_num_list'].index(
                 atom.GetAtomicNum())] + [allowable_features[
                                              'possible_degree_list'].index(atom.GetDegree())]
@@ -362,9 +362,9 @@ class MolGraph(object):
             atom_features_list.append(atom_feature)
         self.x_nosuper = torch.tensor(np.array(atom_features_list), dtype=torch.long)
 
-        # bonds
-        num_bond_features = 2  # bond type, bond direction
-        if len(self.mol.GetBonds()) > 0:  # mol has bonds
+        
+        num_bond_features = 2  
+        if len(self.mol.GetBonds()) > 0:  
             edges_list = []
             edge_features_list = []
             for bond in self.mol.GetBonds():
@@ -380,27 +380,27 @@ class MolGraph(object):
                 edges_list.append((j, i))
                 edge_features_list.append(edge_feature)
 
-            # data.edge_index: Graph connectivity in COO format with shape [2, num_edges]
+            
             self.edge_index_nosuper = torch.tensor(np.array(edges_list).T, dtype=torch.long)
 
-            # data.edge_attr: Edge feature matrix with shape [num_edges, num_edge_features]
+            
             self.edge_attr_nosuper = torch.tensor(np.array(edge_features_list),
                                                   dtype=torch.long)
         else:
-            self.edge_index_nosuper = torch.empty((2, 0), dtype=torch.long)  # edgeCOO索引，[[row索引],[col索引]]
+            self.edge_index_nosuper = torch.empty((2, 0), dtype=torch.long)  
             self.edge_attr_nosuper = torch.empty((0, num_bond_features), dtype=torch.long)
 
-        # add super node
+        
         num_atoms = self.x_nosuper.size(0)
 
-        # 仅用于建立super_node
+        
         super_x = torch.tensor([[119, 0]]).to(self.x_nosuper.device)
 
-        # add motif
-        cliques = motif_decomp(self.mol)  # 用于添加motif
+        
+        cliques = motif_decomp(self.mol)  
         num_motif = len(cliques)
         if num_motif > 0:
-            # 初始化motif, 以及
+            
             motif_x = torch.tensor([[120, 0]]).repeat_interleave(num_motif, dim=0).to(self.x_nosuper.device)
             self.x = torch.cat((self.x_nosuper, motif_x, super_x), dim=0)
 
@@ -416,15 +416,15 @@ class MolGraph(object):
             self.edge_index = torch.cat((self.edge_index_nosuper, motif_edge_index, super_edge_index), dim=1)
 
             motif_edge_attr = torch.zeros(motif_edge_index.size()[1], 2)
-            motif_edge_attr[:, 0] = 6  # bond type for self-loop edge
+            motif_edge_attr[:, 0] = 6  
             motif_edge_attr = motif_edge_attr.to(self.edge_attr_nosuper.dtype).to(self.edge_attr_nosuper.device)
 
             super_edge_attr = torch.zeros(num_motif, 2)
-            super_edge_attr[:, 0] = 5  # bond type for self-loop edge
+            super_edge_attr[:, 0] = 5  
             super_edge_attr = super_edge_attr.to(self.edge_attr_nosuper.dtype).to(self.edge_attr_nosuper.device)
             self.edge_attr = torch.cat((self.edge_attr_nosuper, motif_edge_attr, super_edge_attr), dim=0)
 
-            # num_atoms, num_motif, num_graph
+            
             self.num_part = (num_atoms, num_motif, 1)
 
         else:
@@ -436,7 +436,7 @@ class MolGraph(object):
             self.edge_index = torch.cat((self.edge_index_nosuper, super_edge_index), dim=1)
 
             super_edge_attr = torch.zeros(num_atoms, 2)
-            super_edge_attr[:, 0] = 5  # bond type for self-loop edge
+            super_edge_attr[:, 0] = 5  
             super_edge_attr = super_edge_attr.to(self.edge_attr_nosuper.dtype).to(self.edge_attr_nosuper.device)
             self.edge_attr = torch.cat((self.edge_attr_nosuper, super_edge_attr), dim=0)
 
@@ -456,10 +456,10 @@ class MolGraph(object):
 
 
 if __name__ == '__main__':
-    # graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
-    # print(graph)
-    # qa_json = '/comp_robot/rentianhe/caohe/AIDD/DATA/MolFM/pubcgraphemsft_desc/test.json'
-    # convert_chembl(qa_json)
+    
+    
+    
+    
 
     for split in ['train', 'test', 'validation']:
         txt = f'/cto_labs/AIDD/DATA/MolT5/ChEBI-20_data/{split}.txt'

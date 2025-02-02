@@ -50,17 +50,17 @@ def convert_to_canonical_smiles(smiles):
         return None
 
 def build_evaluate_tuple(result:dict):
-    # pred
-    # func = lambda x: x.rsplit(']', 1)[0] + ']' if isinstance(x, str) else x
+    
+    
     func = lambda x: x
     result["pred_smi"] = convert_to_canonical_smiles(func(sf_encode(result["pred"])))
-    # gt
+    
     result["gt_smi"] = convert_to_canonical_smiles(sf_encode(result["gt"]))
     return result
 
 
 def calc_fingerprints(input_file: str, morgan_r: int=2, eos_token='<|end|>'):
-    outputs = []  # 只有合规的分子
+    outputs = []
     bad_mols = 0
 
     with open(input_file) as f:
@@ -87,7 +87,7 @@ def calc_fingerprints(input_file: str, morgan_r: int=2, eos_token='<|end|>'):
     morgan_sims = []
     RDK_sims = []
 
-    enum_list = outputs  # 只有合规的分子
+    enum_list = outputs
 
     for i, (desc, gt_m, ot_m) in enumerate(enum_list):
 
@@ -98,8 +98,8 @@ def calc_fingerprints(input_file: str, morgan_r: int=2, eos_token='<|end|>'):
         RDK_sims.append(DataStructs.FingerprintSimilarity(Chem.RDKFingerprint(gt_m), Chem.RDKFingerprint(ot_m), metric=DataStructs.TanimotoSimilarity))
         morgan_sims.append(DataStructs.TanimotoSimilarity(AllChem.GetMorganFingerprint(gt_m,morgan_r), AllChem.GetMorganFingerprint(ot_m, morgan_r)))
 
-    maccs_sims_score = np.mean(MACCS_sims)  # 这个指标只有合规的分子  
-    # np.sum(MACCS_sims) / len(outputs) + bad_mols
+    maccs_sims_score = np.mean(MACCS_sims)
+    
     rdk_sims_score = np.mean(RDK_sims)
     morgan_sims_score = np.mean(morgan_sims)
 
@@ -155,7 +155,7 @@ def calc_mol_trans(input_file, eos_token='<|end|>'):
         hypotheses_smi.append(ot_smi_tokens)
         
 
-    # BLEU score
+    
     bleu_score_self = corpus_bleu(references_self, hypotheses_self)
     print(f'SELFIES BLEU score', bleu_score_self)
 
@@ -185,7 +185,7 @@ def calc_mol_trans(input_file, eos_token='<|end|>'):
             m_gt = Chem.MolFromSmiles(gt_smi)
 
             if Chem.MolToInchi(m_out) == Chem.MolToInchi(m_gt): num_exact += 1
-            #if gt == out: num_exact += 1 #old version that didn't standardize strings
+            
         except:
             bad_mols += 1
 
@@ -193,12 +193,12 @@ def calc_mol_trans(input_file, eos_token='<|end|>'):
         levs_smi.append(lev(ot_smi, gt_smi))
 
 
-    # Exact matching score
+    
     exact_match_score = num_exact/(i+1)
     print('Exact Match:')
     print(exact_match_score)
 
-    # Levenshtein score
+    
     levenshtein_score_smi = np.mean(levs_smi)
     print('SMILES Levenshtein:')
     print(levenshtein_score_smi)
@@ -224,10 +224,10 @@ def calc_mocap_metrics(input_file, eos_token, tokenizer: PreTrainedTokenizer):
         f.close()
         
     for i, log in tqdm(enumerate(file)):
-        # cid, pred, gt = log['cid'], log['text'], log['gt']
+        
         pred, gt = log['pred'], log['gt']
         output_tokens.append(tokenizer.tokenize(pred, truncation=True, max_length=512, padding='max_length'))
-        # print(output_tokens)
+        
         output_tokens[i] = list(filter((eos_token).__ne__, output_tokens[i]))
         output_tokens[i] = list(filter((tokenizer.pad_token).__ne__, output_tokens[i]))
         gt_tokens.append(tokenizer.tokenize(gt, truncation=True, max_length=512, padding='max_length'))
@@ -239,12 +239,12 @@ def calc_mocap_metrics(input_file, eos_token, tokenizer: PreTrainedTokenizer):
     bleu2 = corpus_bleu(gt_tokens, output_tokens, weights=[0.5, 0.5])
     bleu4 = corpus_bleu(gt_tokens, output_tokens, weights=(0.25, 0.25, 0.25, 0.25))
     
-    # extract top-10 meteor scores
+    
     meteor_scores = np.array(meteor_scores)
     Start,K = 500,100
     idxes = np.argsort(meteor_scores)[::-1][Start:Start+K]
-    # cids = [log['cid'] for i,log in enumerate(json.load(open(input_file, "r"))) if i in idxes]
-    # cids.sort(key=lambda x: int(x))
+    
+    
     
     final = {
         "BLEU-2": bleu2,
@@ -308,10 +308,4 @@ if __name__ == "__main__":
     file_path = "/root/autodl-tmp/MolMoE/eval_result/fwd_pred-lora-phi-old-projector-bug-fixed-6ep-answer.json"
     calc_fingerprints(file_path, eos_token='<|endoftext|>')
     calc_mol_trans(file_path, eos_token='<|endoftext|>')
-    # nltk.download('wordnet')
-    # exit(0)
-    # tokenizer = AutoTokenizer.from_pretrained("/root/autodl-tmp/MoleculeMoE/MolMoE/checkpoints/phi3-mini")
-    # metrics = calc_mocap_metrics("/root/autodl-tmp/MoleculeMoE/MolMoE/eval_result/molcap_eval.json", '<|endoftext|>', tokenizer)
-    
-    # print(metrics)
     

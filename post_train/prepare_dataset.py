@@ -140,7 +140,7 @@ class GraphEvalCollator(object):
         return self.tokenizer.pad({"input_ids": sequence}, padding=True)
 
     def _convert_dict_to_Data(self, data_dict: Dict) -> Data:
-        if getattr(data_dict, "num_part", None) is not None: # which means we are using himol
+        if getattr(data_dict, "num_part", None) is not None: 
             return Data(
             x=torch.asarray(data_dict.x),
             edge_index=torch.asarray(data_dict.edge_index),
@@ -209,24 +209,24 @@ class AllTaskDataset(Dataset):
         return question
         
     def preprocess_forward(self, raw):
-        # 2. Get instruction, input selfies, output selfies
+        
         instruction = raw['instruction']
         inputs, output_selfies = raw['input'].split('.'), raw['output']
         
-        # 3. Convert to Graph
+        
         reactant_smiles = self.selfies2smiles(inputs[0])
         graph_for_first_reactant = MolGraph(reactant_smiles) \
         if self.args.graph_tower == "himol" else smiles2graph(reactant_smiles)
         
         instruction = "<image>\n" + instruction
 
-        # 4. Add SELFIES
+        
         if self.args.add_selfies:
             instruction += " " + raw['input']
         elif len(inputs) > 1:
             instruction += f" The other joint reactants are: {','.join(inputs[1:])}.\n"
 
-        # chat template
+        
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph_for_first_reactant is not None))
         input_ids = tokenizer_image_token(prompt, self.tokenizer, -200, return_tensors="pt")
         
@@ -240,12 +240,12 @@ class AllTaskDataset(Dataset):
     
     def preprocess_reagent(self, raw):
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if not self.args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = self.construct_instruct_question(product)
         else:
             instruction = raw['instruction'] + f" The reaction is {input}"
@@ -277,13 +277,13 @@ class AllTaskDataset(Dataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, output_selfies = raw['input'], raw['output']
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(input_selfies)
         
         if self.args.graph_tower == "himol":
             graph = MolGraph(reactant_smiles)
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(reactant_smiles)
             
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph is not None))
@@ -305,11 +305,11 @@ class AllTaskDataset(Dataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, target = raw['input'], str(raw['output'])
-        # convert input selfies to smiles for building graph
+        
         if self.args.graph_tower == "himol":
             graph = MolGraph(self.selfies2smiles(input_selfies))
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(self.selfies2smiles(input_selfies))
             
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph is not None))

@@ -32,9 +32,9 @@ def atom_chiral(atom):
 def atom_to_feature(atom):
     num = atom.GetAtomicNum() - 1
     if num == -1:
-        # atom.GetAtomicNum() is 0, which is the generic wildcard atom *, may be used to symbolize an unknown atom of any element.
-        # See https://biocyc.org/help.html?object=smiles
-        num = 118  # normal num is [0, 117], so we use 118 to denote wildcard atom *
+        
+        
+        num = 118  
     return [num, atom_chiral(atom)]
 
 def bond_to_feature(bond):
@@ -49,15 +49,15 @@ def smiles2graph(smiles_string)->Dict:
 
     mol = Chem.MolFromSmiles(smiles_string)
 
-    # atoms
+    
     atom_features_list = []
     for atom in mol.GetAtoms():
         atom_features_list.append(atom_to_feature(atom))
     x = np.array(atom_features_list, dtype = np.int64)
 
-    # bonds
+    
     num_bond_features = 2
-    if len(mol.GetBonds()) > 0: # mol has bonds
+    if len(mol.GetBonds()) > 0: 
         edges_list = []
         edge_features_list = []
         for bond in mol.GetBonds():
@@ -66,19 +66,19 @@ def smiles2graph(smiles_string)->Dict:
 
             edge_feature = bond_to_feature(bond)
 
-            # add edges in both directions
+            
             edges_list.append((i, j))
             edge_features_list.append(edge_feature)
             edges_list.append((j, i))
             edge_features_list.append(edge_feature)
 
-        # data.edge_index: Graph connectivity in COO format with shape [2, num_edges]
+        
         edge_index = np.array(edges_list, dtype = np.int64).T
 
-        # data.edge_attr: Edge feature matrix with shape [num_edges, num_edge_features]
+        
         edge_attr = np.array(edge_features_list, dtype = np.int64)
 
-    else:   # mol has no bonds
+    else:   
         edge_index = np.empty((2, 0), dtype = np.int64)
         edge_attr = np.empty((0, num_bond_features), dtype = np.int64)
 
@@ -178,10 +178,10 @@ def convert_chebi20(txt, out_dir=None, add_selfies=False):
 
 
 if __name__ == '__main__':
-    # graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
-    # print(graph)
-    # qa_json = '/comp_robot/rentianhe/caohe/AIDD/DATA/MolFM/pubcgraphemsft_desc/test.json'
-    # convert_chembl(qa_json)
+    
+    
+    
+    
     
     for split in ['train', 'test', 'validation']:
         txt = f'/cto_labs/AIDD/DATA/MolT5/ChEBI-20_data/{split}.txt'

@@ -81,26 +81,25 @@ class AllTaskDataset(Dataset):
         return question
         
     def preprocess_forward(self, raw):
-        # 2. Get instruction, input selfies, output selfies
+        
         instruction = raw['instruction']
         inputs, output_selfies = raw['input'].split('.'), raw['output']
         
-        # 3. Convert to Graph
+        
         reactant_smiles = self.selfies2smiles(inputs[0])
         graph_for_first_reactant = MolGraph(reactant_smiles) \
         if self.data_args.graph_tower == "himol" else smiles2graph(reactant_smiles)
 
-        # 4. Add SELFIES
+        
         if self.data_args.add_selfies:
             instruction += " " + raw['input']
         elif len(inputs) > 1:
             instruction += f" The other joint reactants are: {','.join(inputs[1:])}"
             
-        # NOTE(Hao Li): Override to left, LLaVA pre-processing multimodal will change the 
-        # <image> to the left anyway
+        
         instruction = "<image>\n" + instruction
 
-        # 5. Prepare conversations
+        
         messages = [
             [
                 {"from": "human", "value": instruction},
@@ -108,14 +107,14 @@ class AllTaskDataset(Dataset):
             ]
         ]
 
-        # Tokenization
+        
         data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph_for_first_reactant is not None))
 
-        # Simplify data_dict extraction
+        
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # Add graph or check multimodal settings
+        
         if graph_for_first_reactant is not None:
             data_dict['graphs'] = graph_for_first_reactant
             assert -200 in data_dict["input_ids"], "Input IDs missing expected <image> token"
@@ -124,12 +123,12 @@ class AllTaskDataset(Dataset):
     
     def preprocess_reagent(self, raw):
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if not self.data_args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = self.construct_instruct_question(product)
         else:
             instruction = raw['instruction'] + f" The reaction is {input}"
@@ -153,7 +152,7 @@ class AllTaskDataset(Dataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -168,13 +167,13 @@ class AllTaskDataset(Dataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, output_selfies = raw['input'], raw['output']
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(input_selfies)
         
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(reactant_smiles)
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(reactant_smiles)
             
         messages = [
@@ -188,7 +187,7 @@ class AllTaskDataset(Dataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -203,11 +202,11 @@ class AllTaskDataset(Dataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, target = raw['input'], str(raw['output'])
-        # convert input selfies to smiles for building graph
+        
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(self.selfies2smiles(input_selfies))
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(self.selfies2smiles(input_selfies))
             
         messages = [
@@ -222,7 +221,7 @@ class AllTaskDataset(Dataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -240,7 +239,7 @@ class AllTaskDataset(Dataset):
         instruction = "<image>\n" + instruction
 
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(input))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(input))  
         else:
             graph = smiles2graph(self.selfies2smiles(input))
 
@@ -255,7 +254,7 @@ class AllTaskDataset(Dataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -318,7 +317,7 @@ class SPINMultiTaskCollator(object):
         return torch.nn.utils.rnn.pad_sequence(sequence, batch_first=True, padding_value=padding_value)
 
     def _convert_dict_to_Data(self, data_dict: Dict) -> Data:
-        if getattr(data_dict, "num_part", None) is not None: # which means we are using himol
+        if getattr(data_dict, "num_part", None) is not None: 
             return Data(
             x=torch.asarray(data_dict.x),
             edge_index=torch.asarray(data_dict.edge_index),

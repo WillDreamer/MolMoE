@@ -115,7 +115,7 @@ def no_init_weights(_enable=True):
         def _skip_init(*args, **kwargs):
             pass
 
-        # # Save the original initialization functions
+        
         for name, init_func in TORCH_INIT_FUNCTIONS.items():
             setattr(torch.nn.init, name, _skip_init)
     try:
@@ -123,7 +123,7 @@ def no_init_weights(_enable=True):
     finally:
         _init_weights = old_init_weights
         if _enable:
-            # # Restore the original initialization functions
+            
             for name, init_func in TORCH_INIT_FUNCTIONS.items():
                 setattr(torch.nn.init, name, init_func)
                 
@@ -161,7 +161,7 @@ def maybe_zero_3(param: torch.Tensor, ignore_status: bool=False, name: str=None)
     return param
     
     
-# Borrowed from peft.utils.get_peft_model_state_dict
+
 def get_peft_state_maybe_zero_3(named_params, bias):
     if bias == "none":
         to_return = {k: t for k, t in named_params if "lora_" in k}
@@ -206,16 +206,16 @@ def seperate_save_lora(
         checkpoint_dir (str): dir used to save
         model (nn.Module): model to be saved
     """
-    if getattr(args, "lora_enable", False):  # if lora enabled
+    if getattr(args, "lora_enable", False):  
         state_dict = get_peft_state_maybe_zero_3(
             model.named_parameters(), args.lora_bias
-        )  # Find all LoRA weights and biases, if it's in ZeRO-3, this function will handle it.
+        )  
         non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(
             model.named_parameters()
-        )  # get model state dict not containing LoRA
-        if args.local_rank in [-1, 0]:  # On master rank
-            # save things
-            model.config.save_pretrained(checkpoint_dir)  # save config
-            model.save_pretrained(checkpoint_dir, state_dict=state_dict)  # save LoRA state_dict
-            torch.save(non_lora_state_dict, os.path.join(checkpoint_dir, 'non_lora_trainables.bin'))  # save non-lora
+        )  
+        if args.local_rank in [-1, 0]:  
+            
+            model.config.save_pretrained(checkpoint_dir)  
+            model.save_pretrained(checkpoint_dir, state_dict=state_dict)  
+            torch.save(non_lora_state_dict, os.path.join(checkpoint_dir, 'non_lora_trainables.bin'))  
             

@@ -26,7 +26,7 @@ if is_peft_available():
 def _is_peft_model(model):
     if is_peft_available():
         classes_to_check = (PeftModel,) if is_peft_available() else ()
-        # Here we also check if the model is an instance of `PeftMixedModel` introduced in peft>=0.7.0: https://github.com/huggingface/transformers/pull/28321
+        
         if version.parse(importlib.metadata.version("peft")) >= version.parse("0.7.0"):
             from peft import PeftMixedModel
 
@@ -48,13 +48,13 @@ class MoETrainer(Trainer):
         if self.optimizer is not None:
             return self.optimizer
 
-        # Separate decay parameters, excluding bias and layernorms
+        
         decay_parameters = [
             n for n in get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
             if "bias" not in n
         ]
         
-        # Group parameters for weight decay and no decay
+        
         optimizer_grouped_parameters = [
             {
                 "params": [
@@ -74,34 +74,33 @@ class MoETrainer(Trainer):
             },
         ]
         
-        # Log MoE parameters
+        
         for name, param in opt_model.named_parameters():
             if is_moe_param(param):
                 print("Detected MoE parameters:", name)
 
         if self.args.moe_enable:
-            # 分割Moe，使用deepspeed必须使用
             print("Splitting params for MoE...")
             optimizer_grouped_parameters = split_params_into_different_moe_groups_for_optimizer(
                 optimizer_grouped_parameters
             )
 
-        # Get optimizer class and arguments
+        
         optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
         self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
 
         return self.optimizer
     
-    # NOTE: Updataed, test whether this can save optimizer steps
+    
     def _save_checkpoint(self, model, trial, metrics=None):
         if getattr(self.args, 'training_recipe') == "stage1":
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
             from transformers.trainer import TRAINER_STATE_NAME
-            # In all cases, including ddp/dp/deepspeed, self.model is always a reference to the model we
-            # want to save except FullyShardedDDP.
-            # assert unwrap_model(model) is self.model, "internal model should be a reference to self.model"
+            
+            
+            
 
-            # Save model checkpoint
+            
             checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
 
             if self.hp_search_backend is None and trial is None:
@@ -110,23 +109,23 @@ class MoETrainer(Trainer):
             run_dir = self._get_output_dir(trial=trial)
             output_dir = os.path.join(run_dir, checkpoint_folder)
 
-            # Only save Adapter ==============
+            
             keys_to_match = ['mm_projector']
             weight_to_save = get_mm_adapter_state_maybe_zero_3(self.model.named_parameters(), keys_to_match)
 
             if self.args.local_rank == 0 or self.args.local_rank == -1:
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
-            # self.save_model(output_dir, _internal_call=True)
-            #===================================
+            
+            
 
             if not self.args.save_only_model:
-                # Save optimizer and scheduler
+                
                 self._save_optimizer_and_scheduler(output_dir)
-                # Save RNG state
+                
                 self._save_rng_state(output_dir)
 
-            # Determine the new best metric / best model checkpoint
+            
             if metrics is not None and self.args.metric_for_best_model is not None:
                 metric_to_check = self.args.metric_for_best_model
                 if not metric_to_check.startswith("eval_"):
@@ -148,19 +147,19 @@ class MoETrainer(Trainer):
                     self.state.best_metric = metric_value
                     self.state.best_model_checkpoint = output_dir
 
-            # Save the Trainer state
+            
             if self.args.should_save:
-                # Update the `TrainerControl` state to where we are currently
+                
                 self.state.stateful_callbacks["TrainerControl"] = self.control.state()
                 self.state.save_to_json(os.path.join(output_dir, TRAINER_STATE_NAME))
 
             if self.args.push_to_hub:
                 self._push_from_checkpoint(output_dir)
 
-            # Maybe delete some older checkpoints.
+            
             if self.args.should_save:
-                # Solely rely on numerical checkpoint id for rotation.
-                # mtime is not reliable especially on some fuse fs in cloud environments.
+                
+                
                 self._rotate_checkpoints(use_mtime=False, output_dir=run_dir)
 
         else:
@@ -177,8 +176,8 @@ class MoETrainer(Trainer):
         else:
             labels = None
         outputs = model(**inputs)
-        # log auxiliary loss
-        # NOTE: not compatible with tuple data type
+        
+        
         if getattr(outputs, "projector_aux_loss", None) is not None and getattr(outputs, "moe_loss", None) is None:
             self.log(
                 {"projector_loss": outputs.projector_aux_loss.item(), 
@@ -199,8 +198,8 @@ class MoETrainer(Trainer):
                  "projector_coeff": outputs.proj_aux_coeff,
                  "router_coeff": outputs.router_aux_coeff}
                 )
-        # Save past state if it exists
-        # TODO: this needs to be fixed and made cleaner later.
+        
+        
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
@@ -220,7 +219,7 @@ class MoETrainer(Trainer):
                     "The model did not return a loss from the inputs, only the following keys: "
                     f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
                 )
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
@@ -233,19 +232,19 @@ class MoETrainer(Trainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> EvalLoopOutput:
-        # for batch in dataloader:
-        #     print("original_batch+++++++++", batch)
-        #     exit(0)
+        
+        
+        
         if self.args.is_mixup_training:
             datasets: ConcatDataset = dataloader.dataset
             dataset_list = datasets.datasets
-            # print("dataset_list++++++++++++", dataset_list[0][0])
-            # exit(0)
+            
+            
             data_loaders = []
-            # seperate loader for each task
+            
             for data in dataset_list:
-                # print("data++++++++++++", data[0])
-                # exit(0)
+                
+                
                 loader = self.get_eval_dataloader(data)
                 data_loaders.append(loader)
                 

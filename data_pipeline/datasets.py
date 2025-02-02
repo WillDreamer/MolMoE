@@ -50,7 +50,7 @@ class GraphDatasetCollator(object):
         return torch.nn.utils.rnn.pad_sequence(sequence, batch_first=True, padding_value=padding_value)
 
     def _convert_dict_to_Data(self, data_dict: Dict) -> Data:
-        if getattr(data_dict, "num_part", None) is not None: # which means we are using himol
+        if getattr(data_dict, "num_part", None) is not None: 
             return Data(
             x=torch.asarray(data_dict.x),
             edge_index=torch.asarray(data_dict.edge_index),
@@ -152,20 +152,20 @@ class PretrainMolDataset(Dataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # Add graph or check multimodal settings
+        
         if graph_for_molecule is not None:
             data_dict['graphs'] = graph_for_molecule
             assert -200 in data_dict["input_ids"], "Input IDs missing expected <image> token"
             
-        # ids = data_dict["input_ids"]
-        # ids = list(ids.detach().numpy())
-        # print("ids", ids)
-        # print("labels", data_dict["labels"])
-        # print(self.tokenizer.decode([518, 29949, 3816]))
-        # ids.remove(-200)
-        # print([self.tokenizer.decode(ids)])
         
-        # exit(0)
+        
+        
+        
+        
+        
+        
+        
+        
 
         return data_dict
         
@@ -178,29 +178,29 @@ class ForwardPredDataset(MetaGraphDataset):
         print("=====Forward Prediction dataset=====")
         
     def __getitem__(self, i) -> dict[str, torch.Tensor]:
-        # 1. Get sample
+        
         raw = self.list_data_dict[i]
 
-        # 2. Get instruction, input selfies, output selfies
+        
         instruction = raw['instruction']
         inputs, output_selfies = raw['input'].split('.'), raw['output']
         
-        # 3. Convert to Graph
+        
         reactant_smiles = self.selfies2smiles(inputs[0])
         graph_for_first_reactant = MolGraph(reactant_smiles) \
         if self.data_args.graph_tower == "himol" else smiles2graph(reactant_smiles)
 
-        # 4. Add SELFIES
+        
         if self.data_args.add_selfies:
             instruction += " " + raw['input']
         elif len(inputs) > 1:
             instruction += f" The other joint reactants are: {','.join(inputs[1:])}"
             
-        # NOTE(Hao Li): Override to left, LLaVA pre-processing multimodal will change the 
-        # <image> to the left anyway
+        
+        
         instruction = "<image>\n" + instruction
 
-        # 5. Prepare conversations
+        
         messages = [
             [
                 {"from": "human", "value": instruction},
@@ -208,27 +208,27 @@ class ForwardPredDataset(MetaGraphDataset):
             ]
         ]
 
-        # Tokenization
+        
         data_dict = apply_chat_template(messages, self.tokenizer, has_image=(graph_for_first_reactant is not None))
 
-        # Simplify data_dict extraction
+        
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # Add graph or check multimodal settings
+        
         if graph_for_first_reactant is not None:
             data_dict['graphs'] = graph_for_first_reactant
             assert -200 in data_dict["input_ids"], "Input IDs missing expected <image> token"
             
-        # ids = data_dict["input_ids"]
-        # ids = list(ids.detach().numpy())
-        # print("ids", ids)
-        # print("labels", data_dict["labels"])
-        # print(self.tokenizer.decode([518, 29949, 3816]))
-        # ids.remove(-200)
-        # print([self.tokenizer.decode(ids)])
         
-        # exit(0)
+        
+        
+        
+        
+        
+        
+        
+        
 
         return data_dict
     
@@ -256,12 +256,12 @@ class ReagentPredDataset(MetaGraphDataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         raw = self.list_data_dict[i]
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if not self.data_args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = self.construct_instruct_question(product)
         else:
             instruction = raw['instruction'] + f" The reaction is {input}"
@@ -285,7 +285,7 @@ class ReagentPredDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -307,13 +307,13 @@ class RetrosynDataset(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, output_selfies = raw['input'], raw['output']
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(input_selfies)
         
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(reactant_smiles)
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(reactant_smiles)
             
         messages = [
@@ -327,7 +327,7 @@ class RetrosynDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -349,11 +349,11 @@ class PropertyPredDataset(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         input_selfies, target = raw['input'], str(raw['output'])
-        # convert input selfies to smiles for building graph
+        
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(self.selfies2smiles(input_selfies))
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(self.selfies2smiles(input_selfies))
             
         messages = [
@@ -368,7 +368,7 @@ class PropertyPredDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -401,7 +401,7 @@ class MolcapDataset(MetaGraphDataset):
         instruction = "<image>\n" + instruction
 
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(input))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(input))  
         else:
             graph = smiles2graph(self.selfies2smiles(input))
 
@@ -416,7 +416,7 @@ class MolcapDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -432,18 +432,18 @@ class CatalystPredDataset(MetaGraphDataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         raw = self.list_data_dict[i]
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if self.data_args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = raw['instruction'] + f" The reaction is {input}."
         else:
             instruction = raw['instruction']
-        # elif len(input) > 1:
-        #     instruction = ""
-        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+        
+        
+        
 
         instruction = "<image>\n" + instruction
 
@@ -463,7 +463,7 @@ class CatalystPredDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                          labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -479,18 +479,18 @@ class SolventPredDataset(MetaGraphDataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         raw = self.list_data_dict[i]
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if self.data_args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = raw['instruction'] + f" The reaction is {input}."
         else:
             instruction = raw['instruction']
-        # elif len(input) > 1:
-        #     instruction = ""
-        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+        
+        
+        
 
         instruction = "<image>\n" + instruction
 
@@ -510,7 +510,7 @@ class SolventPredDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                          labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -526,18 +526,18 @@ class YieldRegressionDataset(MetaGraphDataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         raw = self.list_data_dict[i]
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if self.data_args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = raw['instruction'] + f" The reaction is {input}."
         else:
             instruction = raw['instruction']
-        # elif len(input) > 1:
-        #     instruction = ""
-        #     instruction += f" The other joint reactants are: {','.join(input[1:])}"
+        
+        
+        
 
         instruction = "<image>\n" + instruction
 
@@ -557,7 +557,7 @@ class YieldRegressionDataset(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                          labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -574,35 +574,35 @@ class ExpProcedurePrediction(MetaGraphDataset):
         print("The actual length for experimental procedure pred is", len(self.list_data_dict))
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        # 取出数据条目
+        
         raw = self.list_data_dict[i]
 
-        # 从raw中提取extracted_molecules字典
+        
         extracted_molecules = raw.get("extracted_molecules", {})
 
-        # extracted_molecules是 {SMILES: "$1$"} 的形式，需要反转成 {"$1$": SMILES} 方便查询
+        
         placeholder_to_smiles = {placeholder: smi for smi, placeholder in extracted_molecules.items()}
 
-        # 从raw["input"]中查找所有占位符（例如$1$, $2$, $-1$等）
+        
         placeholders = re.findall(r"\$\d+\$", raw["input"])
 
-        # 收集匹配到的所有SMILES
+        
         smiles_list = []
         for ph in placeholders:
-            # 如果该占位符在placeholder_to_smiles中，则取出对应的SMILES
+            
             if ph in placeholder_to_smiles:
                 smiles_list.append(placeholder_to_smiles[ph])
 
-        # 将所有SMILES用"."连接，形成一个字符串
+        
         smiles = ".".join(smiles_list)
 
-        # 使用raw["input"]和raw["output"]构造instruction
+        
         input, output_selfies = raw['input'], raw['output']
         instruction = raw['instruction'] + f"{input}. "
         instruction += "The Action Sequence: "
         instruction = "<image>\n" + instruction
 
-        # 根据data_args决定是用himol还是smiles2graph构造graph
+        
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(smiles)
         else:
@@ -647,7 +647,7 @@ class SCFPrediction(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(mol))  
         else:
             graph = smiles2graph(self.selfies2smiles(mol))
 
@@ -662,7 +662,7 @@ class SCFPrediction(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -689,7 +689,7 @@ class LogPPrediction(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(mol))  
         else:
             graph = smiles2graph(self.selfies2smiles(mol))
 
@@ -704,7 +704,7 @@ class LogPPrediction(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -732,7 +732,7 @@ class DescriptionQA(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(to_graph))  
         else:
             graph = smiles2graph(self.selfies2smiles(to_graph))
 
@@ -747,7 +747,7 @@ class DescriptionQA(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -762,16 +762,16 @@ class CompoundSelection(MetaGraphDataset):
         print("The actual length for compound selection is", len(self.list_data_dict))
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        # 取出数据条目
+        
         raw = self.list_data_dict[i]
 
-        # 使用raw["input"]和raw["output"]构造instruction
+        
         input, output_selfies = raw['input'], raw['output']
         instruction = raw['instruction']
         instruction = "<image>\n" + instruction
         sel = input.split(">>")[0].split(">")[0].split(".")[0]
         smiles = self.selfies2smiles(sel)
-        # 根据data_args决定是用himol还是smiles2graph构造graph
+        
         if self.data_args.graph_tower == "himol":
             graph = MolGraph(smiles)
         else:
@@ -814,7 +814,7 @@ class WeightPrediction(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(mol))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(mol))  
         else:
             graph = smiles2graph(self.selfies2smiles(mol))
 
@@ -829,7 +829,7 @@ class WeightPrediction(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -856,7 +856,7 @@ class TPSAPrediction(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(to_graph))  
         else:
             graph = smiles2graph(self.selfies2smiles(to_graph))
 
@@ -871,7 +871,7 @@ class TPSAPrediction(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]
@@ -899,7 +899,7 @@ class ComlexityPrediction(MetaGraphDataset):
         instruction = "<image>\n" + instruction
         
         if self.data_args.graph_tower == "himol":
-            graph = MolGraph(self.selfies2smiles(to_graph))  # 数据处理部分没问题
+            graph = MolGraph(self.selfies2smiles(to_graph))  
         else:
             graph = smiles2graph(self.selfies2smiles(to_graph))
 
@@ -914,7 +914,7 @@ class ComlexityPrediction(MetaGraphDataset):
         data_dict = dict(input_ids=data_dict["input_ids"][0],
                             labels=data_dict["labels"][0])
 
-        # graph exist in the data
+        
         if graph is not None:
             data_dict['graphs'] = graph
             assert -200 in data_dict["input_ids"]

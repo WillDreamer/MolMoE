@@ -4,10 +4,10 @@ import torch
 
 
 def create_lottery(moe_layer: MoE, percent):
-    # TODO
-    # 1. get parameters inside MoE
-    # 2. hook all parameters
-    # This is a pointer, right?
+    
+    
+    
+    
     experts = moe_layer.deepspeed_moe.experts.deepspeed_experts
     for name, param in experts.named_parameters():
         prune_by_percent_once(percent, None, param)
@@ -35,16 +35,16 @@ def prune_by_percent_once(percent: float, mask: torch.BoolTensor, final_weight: 
     Returns:
     A dictionary containing the newly-pruned masks.
     """
-    # TODO: find the smallest magnitude
     
-    # 1. find smallest magnitude Done
-    # 2. random choose the weight Done
-    # 3. random intialize them(But the initialization needs to be carefully designed??...) Done
-    # NOTE: checked OK with toy sample:
-    # a = torch.randn(4, 4)
-    # pruned_weight = prune_by_percent_once(0.3, None, a)
-    # print(pruned_weight)
-    # NOTE: Weights should be flattened
+    
+    
+    
+    
+    
+    
+    
+    
+    
     is_weight = False
     if len(final_weight.shape) == 2:
         in_feature, out_feature = final_weight.shape
@@ -54,8 +54,8 @@ def prune_by_percent_once(percent: float, mask: torch.BoolTensor, final_weight: 
     else:
         raise NotImplementedError()
     
-    # flatten all for torch.sort
-    # for weight: in_f * out_f, for bias: no changes
+    
+    
     flattend_weight = final_weight.flatten(0, -1)
     
     if mask is not None:
@@ -63,26 +63,26 @@ def prune_by_percent_once(percent: float, mask: torch.BoolTensor, final_weight: 
     else:
         sorted_weights = torch.sort(torch.abs(flattend_weight))[0]
     
-    # Determine the cutoff for weights to be pruned.
+    
     cutoff_index = torch.round(torch.tensor(percent * sorted_weights.shape[0])).to(torch.int)
     cutoff = sorted_weights[cutoff_index]
     
-    # find indexes for weights to prune
+    
     prune_indices = torch.where(torch.abs(flattend_weight) <= cutoff)[0]
     
-    # random choose here
+    
     randindices = torch.randperm(len(prune_indices))
-    # choose half of the indices
+    
     prune_indices = prune_indices[randindices[:len(prune_indices)//2]]
-    # random intialize the pruned weights
-    # 1. set to zero
-    # 2. [x] mask
-    # 3. coefficient
-    # final_weight[prune_indices] = torch.randn(len(prune_indices))
-    # NOTE: I think we should hook the backward after the reshape operation
+    
+    
+    
+    
+    
+    
     mask = torch.ones(flattend_weight.shape, dtype=flattend_weight.dtype, device=flattend_weight.device)
     mask[prune_indices] = 0
-    # reshape back
+    
     if is_weight:
         mask = mask.reshape(in_feature, out_feature)
         

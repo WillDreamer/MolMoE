@@ -29,7 +29,7 @@ IGNORE_INDEX = -100
 
 
 output_selfies_prompt = "You should output a SELFEIS(Self-Referencing Embedded Strings) representation, SELFIES (Self-Referencing Embedded Strings) is a molecular representation method designed to be robust for machine learning applications, especially in chemistry and drug discovery. It is an alternative to SMILES (Simplified Molecular Input Line Entry System) but has the advantage of being 100% valid by construction."
-five_shot_forward = "Here are some example QA: instruction: Please suggest a potential product based on the given reactants and reagents., input: [O][=C][C][=C][C][Branch1][=Branch1][N+1][=Branch1][C][=O][O-1][=C][Branch1][C][F][C][=C][Ring1][#Branch2][F].[C][C][C][O][C][Ring1][Branch1].[Cl].[BH4-1].[Na+1], output: [O][=N+1][Branch1][C][O-1][C][=C][C][Branch1][Ring1][C][O][=C][Branch1][C][F][C][=C][Ring1][=Branch2][F],\n\n instruction: Please provide a feasible product that could be formed using the given reactants and reagents., input: [C][O][C][=Branch1][C][=O][C][C][C][C][C][C][C][C][C][C][C][C][C][C][Ring1][N].[C][O].[O].[Na+1].[OH1-1], output: [O][=C][Branch1][C][O][C][C][C][C][C][C][C][C][C][C][C][C][C][C][Ring1][N]"
+five_shot_forward = "Here are some example QA: instruction: Please suggest a potential product based on the given reactants and reagents., input: [O][=C][C][=C][C][Branch1][=Branch1][N+1][=Branch1][C][=O][O-1][=C][Branch1][C][F][C][=C][Ring1][
 
 output_molcap_prompt = "You should only output information related to the molecule description."
 output_energy_prompt = "If you cannot judge, just return a number you think is reasonable, <|system|> YOU MUST OUTPUT ONLY WITH A NUMBER, NO MORE EXTRA INFORMATION"
@@ -114,7 +114,7 @@ class GraphEvalCollator(object):
         return self.tokenizer.pad({"input_ids": sequence}, padding=True)
 
     def _convert_dict_to_Data(self, data_dict: Dict) -> Data:
-        if getattr(data_dict, "num_part", None) is not None: # which means we are using himol
+        if getattr(data_dict, "num_part", None) is not None: 
             return Data(
             x=torch.asarray(data_dict.x),
             edge_index=torch.asarray(data_dict.edge_index),
@@ -163,29 +163,29 @@ class EvalForwardPredDataset(MetaEvalDataset):
         super().__init__(args, tokenizer)
         
     def __getitem__(self, i):
-        # 1. Get sample
+        
         raw = self.list_data_dict[i]
 
-        # 2. Get instruction, input selfies, output selfies
+        
         instruction = force_prompt["fwd_pred"] + five_shot_forward
         instruction += raw['instruction']
 
         inputs, output_selfies = raw['input'].split('.'), raw['output']
         
-        # 3. Convert to Graph
+        
         reactant_smiles = self.selfies2smiles(inputs[0])
         graph_for_first_reactant = MolGraph(reactant_smiles) \
         if self.args.graph_tower == "himol" else smiles2graph(reactant_smiles)
         
         instruction = "<image>\n" + instruction
 
-        # 4. Add SELFIES
+        
         if self.args.add_selfies:
             instruction += " " + raw['input']
         elif len(inputs) > 1:
             instruction += f" The other joint reactants are: {','.join(inputs[1:])}.\n"
 
-        # chat template
+        
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph_for_first_reactant is not None))
         input_ids = tokenizer_image_token(prompt, self.tokenizer, -200, return_tensors="pt")
         
@@ -222,12 +222,12 @@ class EvalReagentPredDataset(MetaEvalDataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         raw = self.list_data_dict[i]
         input, output_selfies = raw['input'], raw['output']
-        # input: "reactant>>product"
+        
         reactant, product = input.split(">>")
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(reactant)
         if not self.args.add_selfies:
-            # insert product to the instruction end
+            
             instruction = self.construct_instruct_question(product)
         else:
             instruction = raw['instruction'] + f" The reaction is {input}"
@@ -271,13 +271,13 @@ class EvalRetrosynDataset(MetaEvalDataset):
         instruction += force_prompt["retrosynthesis"]
         
         input_selfies, output_selfies = raw['input'], raw['output']
-        # convert input selfies to smiles for building graph
+        
         reactant_smiles = self.selfies2smiles(input_selfies)
         
         if self.args.graph_tower == "himol":
             graph = MolGraph(reactant_smiles)
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(reactant_smiles)
             
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph is not None))
@@ -309,11 +309,11 @@ class EvalPropertyPredDataset(MetaEvalDataset):
         instruction += force_prompt["property_pred"]
         
         input_selfies, target = raw['input'], str(raw['output'])
-        # convert input selfies to smiles for building graph
+        
         if self.args.graph_tower == "himol":
             graph = MolGraph(self.selfies2smiles(input_selfies))
         else:
-            # graph data containes the information of the first SELFIES 
+            
             graph=smiles2graph(self.selfies2smiles(input_selfies))
             
         prompt = apply_chat_template(instruction, self.tokenizer, has_image=(graph is not None))
@@ -333,7 +333,7 @@ class EvalMolcapDataset(Dataset):
     def __init__(self, tokenizer: PreTrainedTokenizer, args: EvalArguments) -> None:
         super().__init__()
         with open(args.data_path, "rt") as f:
-            f.readline()  # skip the first line
+            f.readline()  
             self.list_data = f.readlines()
             f.close()
         
@@ -454,8 +454,8 @@ def start_eval(args: EvalArguments):
             generation_config=generation_config
         )
         
-        # print(output_ids[input_ids.shape[1]:].strip())
-        # exit(0)
+        
+        
         
         for idx, (result, input_id, prompt, gt) in enumerate(zip(output_ids, input_ids, batch["prompt"], batch["gt"])):
             this_output = {
@@ -510,8 +510,8 @@ if __name__ == "__main__":
         if args.task in ["fwd_pred", "reag_pred", "retrosyn"]:
             calc_mol_trans(args.output_path, EOS_MAP[args.prompt_version])
             calc_fingerprints(args.output_path, eos_token=EOS_MAP[args.prompt_version])
-        # from transformers import AutoTokenizer
-        # tokenizer = AutoTokenizer.from_pretrained(args.language_backbone)
+        
+        
             
         if args.task == "molcap":
             if tokenizer.pad_token is None and args.prompt_version == "llama3":
