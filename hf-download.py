@@ -10,5 +10,5 @@ repo_id = 'meta-llama/Meta-Llama-3-8B-Instruct'
 # lmsys/vicuna-7b-v1.5
 # repo_id = "meta-llama/Llama-3.2-3B-Instruct"
 
-local_dir = "/wanghaixin/MolMoE/checkpoints/" + repo_id.split("/")[1]
+local_dir = "/your/path/to/checkpoints/" + repo_id.split("/")[1]
 snapshot_download(repo_id=repo_id, local_dir=local_dir)
