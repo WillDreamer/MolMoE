@@ -305,7 +305,7 @@ def compute_mae(eval_result_file:str, eos_token):
         
         
 if __name__ == "__main__":
-    file_path = "/root/autodl-tmp/MolMoE/eval_result/fwd_pred-lora-phi-old-projector-bug-fixed-6ep-answer.json"
+    file_path = "/your/path/to/fwd_pred-lora-phi-old-projector-bug-fixed-6ep-answer.json"
     calc_fingerprints(file_path, eos_token='<|endoftext|>')
     calc_mol_trans(file_path, eos_token='<|endoftext|>')
     
