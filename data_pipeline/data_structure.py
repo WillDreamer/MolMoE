@@ -456,11 +456,7 @@ class MolGraph(object):
 
 
 if __name__ == '__main__':
-    
-    
-    
-    
 
     for split in ['train', 'test', 'validation']:
-        txt = f'/cto_labs/AIDD/DATA/MolT5/ChEBI-20_data/{split}.txt'
+        txt = f'/your/path/to/DATA/MolT5/ChEBI-20_data/{split}.txt'
         convert_chebi20(txt, add_selfies=True)
