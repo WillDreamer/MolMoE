@@ -1,4 +1,4 @@
-# @ MolMoE projects 2024
+# @ Omni-Mol projects 2024
 
 import transformers
 from helper_utils import initialize_distributed_training, model_profiler
